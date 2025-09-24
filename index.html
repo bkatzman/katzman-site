@@ -1,104 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Spencer Katzman</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
   <style>
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.5;
-      color: #111;
-      background: #fff;
+      text-align: left; /* default left justification */
     }
 
-    .container {
-      display: grid;
-      grid-template-columns: 400px 1fr; /* narrower image column */
-      gap: 24px;
-      align-items: start;
-      max-width: 1200px;
-      margin: 0;
-      padding: 16px;
-    }
-
-    .profile-col {
-      position: sticky;
-      top: 16px;
-      align-self: start;
+    /* Layout: image on left, content on right */
+    .layout {
+      display: flex;
+      align-items: flex-start;
+      padding: 20px;
     }
 
     .header-img {
-      display: block;
-      width: 100%;       /* fill the column */
-      height: auto;      /* preserve aspect ratio */
-      border-radius: 14px;
-      margin-left: 0;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+      width: 400px;   /* about 4× bigger than your original ~100px image */
+      height: auto;
+      margin-right: 40px;
     }
 
-    header h1 {
-      margin: 0 0 24px 0;
-      font-size: 2.5rem;
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      text-align: left;
+    .content {
+      flex: 1;
+      max-width: 900px;
     }
 
-    main { padding-bottom: 48px; }
+    /* Objective section text is justified */
+    .justified {
+      text-align: justify;
+    }
 
-    section { margin-bottom: 28px; text-align: left; }
-
-    .justified { text-align: justify; }
+    section {
+      margin-bottom: 28px;
+    }
 
     ul {
       padding-left: 1.25rem;
-      margin: 0.5rem 0 0 0;
       list-style: disc outside;
-      text-align: left;
     }
 
     .cta-link {
       display: inline-block;
       font-weight: 900;
-      font-size: 1.15rem;
+      font-size: 1.35rem;
       text-decoration: none;
-      background: #d10000; /* red */
-      color: #fff;         /* white text */
-      padding: 12px 18px;
+      background: #ffea00;
+      padding: 12px 16px;
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      border: 2px solid rgba(0,0,0,0.7);
     }
-    .cta-link:hover, .cta-link:focus {
+    .cta-link:hover {
       filter: brightness(0.95);
-      transform: translateY(-1px);
-    }
-
-    @media (max-width: 1100px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
-      .header-img {
-        margin-left: 0;
-        width: 100%;
-      }
-      .profile-col {
-        position: static;
-      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <aside class="profile-col">
-      <img src="katzman.png" alt="Spencer Katzman" class="header-img" />
-    </aside>
+  <div class="layout">
+    <img src="katzman.png" alt="Spencer Katzman" class="header-img">
 
-    <div class="content-col">
+    <div class="content">
       <header>
         <h1>Spencer Katzman</h1>
       </header>
@@ -106,7 +71,7 @@
       <main>
         <section>
           <h2>Objective</h2>
-          <p class="justified">Welcome to my personal webpage. I am a a junior at the University of Georgia triple majoring in Mathematics, Economics, and Political Science. My current ojective is to obtain a sports analytics internship where I can apply quantitative skills from my majors, and leverage my proficiency in R, Python, SQL, and Excel. I possess strong problem-solving and self-directed learning skills while gaining hands-on experience applying analytics to sports performance, strategy, and decision making.</p>
+          <p class="justified">Welcome to my personal webpage. I am a junior at the University of Georgia triple majoring in Mathematics, Economics, and Political Science. My current ojective is to obtain a sports analytics internship where I can apply the quantitative abilities developed in my coursework while leveraging my proficiency in R, Python, SQL, and Excel. I possess strong problem solving and self-directed learning skills and would like top gain hands-on experience applying analytics to sports performance, strategy, and decision making.</p>
         </section>
 
         <section>
@@ -122,14 +87,14 @@
         <section>
           <h2>Research Papers</h2>
           <ul>
-            <li><a href="https://arxiv.org/abs/XXXX" target="_blank" rel="noopener">Paper Title 1</a></li>
-            <li><a href="https://doi.org/XXXX" target="_blank" rel="noopener">Paper Title 2</a></li>
+            <li><a href="https://arxiv.org/abs/XXXX" target="_blank">Paper Title 1</a></li>
+            <li><a href="https://doi.org/XXXX" target="_blank">Paper Title 2</a></li>
           </ul>
         </section>
 
         <section>
           <h2>Resume</h2>
-          <p><a class="cta-link" href="resume.pdf" target="_blank" rel="noopener">Download my CV (PDF)</a></p>
+          <p><a class="cta-link" href="resume.pdf" target="_blank">Download my CV (PDF)</a></p>
         </section>
       </main>
     </div>

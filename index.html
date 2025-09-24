@@ -5,7 +5,6 @@
   <title>Spencer Katzman</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Reset & base */
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
@@ -16,32 +15,28 @@
       background: #fff;
     }
 
-    /* Two-column layout: image (left) next to content/headings (right) */
     .container {
       display: grid;
-      grid-template-columns: 560px 1fr; /* image column / content column */
-      gap: 32px;
+      grid-template-columns: 270px 1fr;
+      gap: 16px;
       align-items: start;
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 24px;
+      max-width: 1000px;
+      margin: 0;
+      padding: 16px;
     }
 
-    /* Keep the image alongside the headings and visible while scrolling */
     .profile-col {
       position: sticky;
       top: 16px;
       align-self: start;
     }
 
-    /* Larger image, pulled in from the far-left edge */
     .header-img {
       display: block;
-      width: 540px;       /* larger image */
-      max-width: 100%;
-      height: auto;
+      width: 270px;       /* half width */
+      height: auto;       /* same height scaling */
       border-radius: 14px;
-      margin-left: 24px;  /* not as far to the left */
+      margin-left: 0;
       box-shadow: 0 10px 24px rgba(0,0,0,0.12);
     }
 
@@ -50,29 +45,29 @@
       font-size: 2.5rem;
       font-weight: 800;
       letter-spacing: 0.2px;
+      text-align: left;
     }
 
     main { padding-bottom: 48px; }
 
-    section { margin-bottom: 28px; }
+    section { margin-bottom: 28px; text-align: left; }
 
-    /* Objective paragraph only: fully justified */
     .justified { text-align: justify; }
 
     ul {
       padding-left: 1.25rem;
       margin: 0.5rem 0 0 0;
       list-style: disc outside;
+      text-align: left;
     }
 
-    /* CTA button: red background, black text */
     .cta-link {
       display: inline-block;
       font-weight: 900;
       font-size: 1.15rem;
       text-decoration: none;
       background: #d10000; /* red */
-      color: #000;         /* black text */
+      color: #fff;         /* white text */
       padding: 12px 18px;
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -83,7 +78,6 @@
       transform: translateY(-1px);
     }
 
-    /* Responsive: stack columns on narrow screens */
     @media (max-width: 1100px) {
       .container {
         grid-template-columns: 1fr;

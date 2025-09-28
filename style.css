@@ -21,7 +21,7 @@ body {
   max-width: none;                   /* remove 120px cap */
   height: auto;
   display: block;
-  margin: 0 auto 10px auto;
+  margin: 0 20px 10px 0;             /* flush left, with spacing to the right */
   flex-shrink: 0;
 }
 

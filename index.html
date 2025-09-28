@@ -17,11 +17,12 @@
       display: flex;
       align-items: flex-start;
       padding: 20px;
-      flex-wrap: wrap; /* allows stacking on smaller screens */
+      flex-wrap: wrap;           /* allow stacking on narrow screens */
+      gap: 20px;                 /* space when stacked */
     }
 
+    /* keep for fallback, but inline style on <img> will win */
     .header-img {
-      width: clamp(300px, 45vw, 1000px); /* responsive scaling */
       height: auto;
       margin-right: 40px;
       flex-shrink: 0;
@@ -33,13 +34,9 @@
     }
 
     /* Objective section text is justified */
-    .justified {
-      text-align: justify;
-    }
+    .justified { text-align: justify; }
 
-    section {
-      margin-bottom: 28px;
-    }
+    section { margin-bottom: 28px; }
 
     ul {
       padding-left: 1.25rem;
@@ -56,14 +53,14 @@
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .cta-link:hover {
-      filter: brightness(0.95);
-    }
+    .cta-link:hover { filter: brightness(0.95); }
   </style>
 </head>
 <body>
   <div class="layout">
-    <img src="katzman.png" alt="Spencer Katzman" class="header-img">
+    <!-- Inline style ensures size wins over external rules; ?v=2 busts cache -->
+    <img src="katzman.png?v=2" alt="Spencer Katzman" class="header-img"
+         style="width: clamp(360px, 48vw, 1100px); height: auto;">
 
     <div class="content">
       <header>
@@ -96,4 +93,11 @@
 
         <section>
           <h2>Resume</h2>
-          <p><a class="cta-link" href="resume.pd
+          <p><a class="cta-link" href="resume.pdf" target="_blank">Download my CV (PDF)</a></p>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
+

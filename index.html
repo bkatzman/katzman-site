@@ -17,16 +17,15 @@
     .layout {
       display: flex;
       align-items: flex-start;
-      justify-content: flex-start; /* force content to the left */
       padding: 20px;
       gap: 20px;
     }
 
     .header-img {
-      width: clamp(90px, 10vw, 200px);
+      width: clamp(90px, 10vw, 200px); /* same size as your 'fantastic' version */
       height: auto;
       flex-shrink: 0;
-      margin-right: 20px;
+      margin: 0 20px 10px 0 !important; /* force left alignment; override any auto-centering */
     }
 
     .content {
@@ -35,13 +34,9 @@
       text-align: left;
     }
 
-    .justified {
-      text-align: justify;
-    }
+    .justified { text-align: justify; }
 
-    section {
-      margin-bottom: 28px;
-    }
+    section { margin-bottom: 28px; }
 
     ul {
       padding-left: 1.25rem;
@@ -58,14 +53,12 @@
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .cta-link:hover {
-      filter: brightness(0.95);
-    }
+    .cta-link:hover { filter: brightness(0.95); }
   </style>
 </head>
 <body>
   <div class="layout">
-    <img src="katzman.png?v=9" alt="Spencer Katzman" class="header-img">
+    <img src="katzman.png?v=8" alt="Spencer Katzman" class="header-img">
 
     <div class="content">
       <header>

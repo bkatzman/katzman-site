@@ -1,0 +1,1310 @@
+# install.packages("gtool")
+# install.packages("openxlsx")
+flush.console()
+
+start_time <- Sys.time()
+
+# Libraries
+
+library(gtools)
+library(openxlsx)
+
+
+######################## Declarations and Data Inputs ##########################
+
+# Use A = 3,5,9
+# Use N = 3,99,9999
+
+N <- 99  # number of voters
+A <- 9  # number of candidates
+T <- 1000  # number of simulations 
+
+# Create data frame output_df to hold output (winner numbers)
+output_df <- data.frame(
+  LFP = NA, # Least First Place Winner
+  MLP = NA, # Most Last Place winner
+  LBC = NA, # Lowest Borda Count winner
+  CW = NA, # Condorcet Winner
+  CL = NA, # Condorcet Loser
+  Rev.LFP = NA, # LFP winner when preferences are reversed
+  Rev.MLP = NA, # MLP winner when preferences are reversed
+  Rev.LBC = NA, # LBC winner when preferences are reversed
+  IEA.LFP = NA, # identity of last winning candidate considered in IEA removals for LFP
+  IEA.MLP = NA, # identity of last winning candidate considered in IEA removals for MLP
+  IEA.LBC = NA, # identity of last winning candidate considered in IEA removals for LBC
+  stringsAsFactors = FALSE
+)
+
+# Give output_df T rows
+output_df <- output_df[rep(1, T), ]
+# This gets rows numbers equal to sequential integers (instead of 1, 1.1, 1.2,...)
+rownames(output_df) <- NULL
+
+permutations <- gtools::permutations(n = A, r = A, v = 1:A)
+
+# ################################# Functions ##################################
+
+
+
+# ##### Generate Preference Profiles ##### #
+
+# This function finds all possible preference orderings for an individual voter 
+# and then generates N orderings and saves them to a df called pref_profiles
+
+#define preference profile function
+pref_profile_generator <- function(N, A) {
+  
+
+  # Randomly select a row of the permutation matrix for each column in pref_profiles
+  pref_profiles <- permutations[sample(nrow(permutations), N, replace = TRUE), ]
+  colnames(pref_profiles) <- paste0("V", 1:A)
+  
+  # Returns preference profile data frame when function is called
+  return(pref_profiles)
+}
+
+
+
+# ####Preference Counts Function #### #
+
+# This function counts the number of voters who rank candidate i in the jth 
+# position. It inputs the data frame preference_profiles (usually input as 
+# updated_preferences so that it can use updated pref rankings as candidates are 
+# eliminated). This is mainly used to find the majority winner and compute Borda counts
+
+preference_counts <- function(updated_prefs) {
+  
+  updated_prefs <- as.data.frame(updated_prefs)
+  # calculates how many candidates remain in the current iteration
+  A <- ncol(updated_prefs)  # Number of columns in updated_prefs
+  
+  # This initializes the count-matrix. max-value is just the highest numbered 
+  # candidate and thus defines the number of rows. It adds one column (the first
+  # column)to track the voter number (this makes some things easier later)
+  max_value <- max(unlist(updated_prefs))
+  count_matrix <- matrix(0, nrow = max_value, ncol = A + 1)
+  
+  # Populate the first column with integers 1 to max_value to keep track of 
+  # candidate numbers
+  count_matrix[, 1] <- 1:max_value
+  
+  # Calculates candidate counts for each column of preferences and saves them in 
+  # count_matrix   
+  for (i in 1:A) {
+    counts <- table(updated_prefs[[i]])
+    count_matrix[as.numeric(names(counts)), i + 1] <- as.vector(counts)
+  }
+  
+  # Converts matrix to a data frame
+  count_matrix <- count_matrix[rowSums(count_matrix[, -1] != 0) > 0, ]
+  count_matrix <- as.data.frame(count_matrix)
+
+  # returns the counts when the function is called 
+  return(count_matrix)
+  
+}
+
+
+# #### Majority Winner Function #### #
+
+# This function examines the second column of count_matrix (1st place votes) 
+# and determines if there is a majority winner.
+
+majority_winner <- function(count_results, N, t, column, output_df) {
+  if (any(count_results[, 2] > N / 2)) {
+    winner <- count_results[which.max(count_results[, 2]), 1]
+    output_df[t, column] <- winner
+    return(list(winner = TRUE, output_df = output_df))
+  }
+  return(list(winner = FALSE, output_df = output_df))
+}
+
+
+# #### Function that eliminates Least First Place with tied candidates #### #
+
+# This function inputs the current preference profile and finds the candidate(s)
+# with the least number of first place votes and removes them from the preference 
+# profile. 
+
+eliminate_least_first <- function(pref_profiles, output_df) {
+  
+  # initiates the variable no_winner to FALSE
+  no_winner <- FALSE
+  
+  # This extracts the column of first place rankings from pref_profiles and 
+  # drop = TRUE makes sure it's a single column and not a matrix
+  # unlist makes it a plain vector and as.numeric makes the vector all numeric
+  # In the end this makes column V1 of pref_profiles a numeric vector which 
+  # simplifies some of the code below
+  
+  # Calculates the candidate preference counts in each column of pref_profiles
+  count_df <- preference_counts(pref_profiles) 
+  #count_df <- as.data.frame(count_df)
+  # v1_count <- as.numeric(unlist(v1_count[, "V2", drop = TRUE]))
+  
+  min_count <- min(count_df$V2)
+  # values_to_remove are the numbers of candidates that are being eliminated in 
+  # this iteration
+  values_to_remove <- count_df$V1[count_df$V2 == min_count]
+
+  # remaining_values is a vector of the number(s) of all remaining candidates
+  remaining_values <- unique(as.numeric(unlist(pref_profiles)))
+
+  # The following compares values_to_remove to remaining values. If these are 
+  # the same then this is a "freak ties" case where there is no winner
+  if (all(remaining_values %in% values_to_remove)) {
+    # sets no-winner to TRUE
+    no_winner <- TRUE
+    
+    # If there is no winner then a df for preferences is returned as is 
+    # no_winner = TRUE. The filtered_prefs doesn't tell me anything since 
+    # all remaining candidates have been eliminated but I need to return 
+    # something to avoid an error
+    return(list(filtered_prefs = pref_profiles, no_winner = no_winner))
+  }
+  
+  # If not all candidates are removed, the candidate values to remove are 
+  # removed to get the filtered_prefs matrix
+  filtered_prefs <- t(apply(pref_profiles, 1, function(row) {
+    row <- as.numeric(unlist(row)) # ensures numeric values
+    row <- row[!row %in% values_to_remove] # Remove candidates from pref profile
+    c(row, rep(NA, ncol(pref_profiles) - length(row))) # adds NAs if needed
+  }))
+  
+  # Convert filtered matrix back to a data frame and names the columns V1, V2, ...
+  filtered_prefs <- as.data.frame(filtered_prefs)
+  # removes NA columns
+  filtered_prefs <- filtered_prefs[, colSums(!is.na(filtered_prefs)) > 0]
+  filtered_prefs <- as.data.frame(filtered_prefs) 
+  colnames(filtered_prefs) <- paste0("V", seq_len(ncol(filtered_prefs)))
+  
+  # Check if only one column remains - that means there is a winner and the 
+  # winner can be reported without more steps (ending it here also prevents an
+  # error problem with the data frame being reduced to on column)
+  if (ncol(filtered_prefs) == 1) {
+    # returns the filtered_prefs df and no-winner = FALSE when function is called
+    return(list(filtered_prefs = filtered_prefs, no_winner = FALSE, winner = filtered_prefs[[1,1]]))
+  }
+  
+  # returns filtered_prefs and no_winner = FALSE when filtered_prefs contains 
+  # more than one remaining candidate. Note there's no need to return winner here
+  return(list(filtered_prefs = filtered_prefs, no_winner = no_winner))
+  
+}
+
+
+# ##### Function finds winner of Least First Place with ties ##### #
+
+# Inputs current preferences (based on previous eliminations), N, t, 
+# the column to which the winner number should written in output_df, 
+# and then returns the updated output_df file to the main body
+
+winner_LFP <- function(updated_prefs, N, t, column, output_df) {
+  
+  # Loops until winner is found
+  for (i in 1:A) {
+    
+    # calculates counts for each candidate for each ranking (first, second, ...)
+    counts_matrix <- preference_counts(updated_prefs) 
+    
+    # calls majority_winner function to see if there is one
+    winner_return <- majority_winner(counts_matrix, N, t, column, output_df)
+    output_df <- winner_return$output_df
+    
+    # If there was a winner then the loop ends and returns output_df with the 
+    # winning candidate number in the correct row and column. If no winner yet, 
+    # it goes to next section of the function.
+    if (winner_return$winner == TRUE) {
+      return(output_df)
+    }
+    
+    # This saves the returned output from eliminate_least_first list in result.
+    # It gets here if there is no majority winner in the iteration and so 
+    # it runs the elimination function
+    
+    result <- eliminate_least_first(updated_prefs)
+    updated_prefs <- result$filtered_prefs 
+    no_winner <- result$no_winner
+    winner <- result$winner 
+    
+    # no-winner = TRUE means that all candidates were remaining candidates were
+    # eliminated at the same time in a "freak tie" situation and the "winner" is 0. 
+    # If no_winner = FALSE then the loop doesn't break and iterates again.
+    if (no_winner == TRUE) {
+      output_df[t, column] <- 0 # equal 0 means there was no winner
+      return(output_df)
+    }
+    
+    # This is for the case where the iteration eliminates all but one candidate
+     if (length(winner) != 0) {
+       output_df[t, column] <- winner # returned when there is only one candidate remaining
+       return(output_df)
+    }
+    
+    # This updates the preference profile unless there was a winner or there was 
+    # a no winner and thus the function updated output_df and returned earlier.
+    
+    updated_prefs <- result$filtered_prefs
+    
+  }
+  
+}
+
+
+# #### Most Last Place (freak ties possible) Elimination Function #### #
+
+# This function inputs the current preference profile and finds the candidate(s)
+# with the most number of last place votes and removes them from the preference 
+# profile. 
+
+eliminate_most_last <- function(pref_profiles, output_df) {
+  
+  # initiates the variable no_winner to FALSE
+  no_winner <- FALSE
+  
+  # Calculates the candidate preference counts in each column of pref_profiles
+  count_df <- preference_counts(pref_profiles) 
+  #count_df <- as.data.frame(count_df)
+  
+  # Example code to get the name of the last column since this changes after
+  # each elimination.
+  last_column_name <- ncol(count_df)
+  
+  # Find the maximum value in the last column, this will be the most last place votes
+  max_value <- max(count_df[[last_column_name]], na.rm = TRUE)
+ 
+  # Find the candidate(s) associated with the most last place votes and save 
+  # their numbers to value_to_remove
+  values_to_remove <- count_df$V1[count_df[, ncol(count_df)] == max_value]
+
+  # remaining_values is a vector of the number(s) of all remaining candidates
+  remaining_values <- unique(as.numeric(unlist(pref_profiles)))
+  
+  # The following compares values_to_remove to remaining values. If these are 
+  # the same then this is a "freak ties" case where there is no winner
+  if (all(remaining_values %in% values_to_remove)) {
+    # sets no-winner to TRUE
+    no_winner <- TRUE
+    
+    return(list(filtered_prefs = pref_profiles, no_winner = no_winner))
+  }
+  
+  # If not all candidates are removed, the candidate values to remove are 
+  # removed to get filtered_prefs matrix
+  filtered_prefs <- t(apply(pref_profiles, 1, function(row) {
+    row <- as.numeric(unlist(row)) # ensures numeric values
+    row <- row[!row %in% values_to_remove] # Remove candidates from pref profile
+    c(row, rep(NA, ncol(pref_profiles) - length(row))) # adds NAs if needed
+  }))
+  
+  # Convert filtered matrix back to a data frame and names the columns V1, V2, ...
+  filtered_prefs <- as.data.frame(filtered_prefs)
+  # removes NA columns
+  filtered_prefs <- filtered_prefs[, colSums(!is.na(filtered_prefs)) > 0]
+  filtered_prefs <- as.data.frame(filtered_prefs) 
+  colnames(filtered_prefs) <- paste0("V", seq_len(ncol(filtered_prefs)))
+  
+  # Check if only one column remains - that means there is a winner and the 
+  # winner can be reported without more steps (ending it here also prevents an
+  # error problem with the data frame being reduced to on column)
+  if (ncol(filtered_prefs) == 1) {
+    # returns the filtered_prefs df and no-winner = FALSE when function is called
+    return(list(filtered_prefs = filtered_prefs, no_winner = FALSE, winner = filtered_prefs[[1,1]]))
+  }
+  
+  return(list(filtered_prefs = filtered_prefs, no_winner = no_winner))
+  
+}
+
+
+# ###### Finds MLP winner for current pref profile ###### #  
+
+winner_MLP <- function(updated_prefs, N, t, column, output_df) {
+  
+  # See previous winner functions for comments
+  # Loops until a winner is found
+  
+  for (i in 1:A) {
+    
+    # calculates counts for each candidate for each ranking (first, second, ...)  
+    counts_matrix <- preference_counts(updated_prefs)
+    
+    # calls majority_winner to see if there is one and returns winner number to output_df
+    winner_return <- majority_winner(counts_matrix, N, t, column, output_df)
+    output_df <- winner_return$output_df
+    
+    # If there was a winner then the loop ends and returns output_df with the 
+    # winning candidate number in the correct row and column. If no winner yet, 
+    # it goes to next section of the function.
+    if (winner_return$winner == TRUE) {
+      return(output_df)
+    }
+    
+    # This saves the returned output from eliminate_most_last list in result.
+    # It gets here if there is no majority winner in the iteration and so 
+    # it runs the elimination function
+    
+    result <- eliminate_most_last(updated_prefs)
+    updated_prefs <- result$filtered_prefs 
+    no_winner <- result$no_winner
+    winner <- result$winner 
+    
+    # no-winner = TRUE means that all candidates were remaining candidates were
+    # eliminated at the same time. 
+    # If no_winner = FALSE then the loop doesn't return and iterates again.
+    if (no_winner == TRUE) {
+       output_df[t, column] <- 0 # equal 0 means there was no winner
+       return(output_df)
+    }
+
+    if (length(winner) != 0) {
+      output_df[t, column] <- winner # returned when there is only one candidate remaining
+      return(output_df)
+    }
+    
+    # This updates the preference profile unless there was a winner or there was 
+    # a no winner and thus the function updated output_df and returned earlier.
+    updated_prefs <- result$filtered_prefs
+    
+  }
+  
+}
+
+
+# #### Borda Count Calculation Function #### #
+
+# This function inputs the count_matrix and uses it to calculate each candidate's
+# Borda Count.
+
+borda_count <- function(count_matrix) {
+  
+  # Identify the number of rows (A) and columns (M) in the count matrix
+  # This varies depending on how many candidates have been eliminated
+  A <- nrow(count_matrix)
+  M <- ncol(count_matrix)
+  
+  # Keep only rows where at least one column (from column 2 onwards) is non-zero   
+  count_matrix <- count_matrix[rowSums(count_matrix[, -1] != 0) > 0, ]
+  
+  # Update A after cleaning it of empty rows
+  A <- nrow(count_matrix)
+  
+  # If no rows remain after filtering, stop with an informative message
+  
+  # Generate the Borda weights for columns starting from column 2 (column 1 is 
+  # number candidate)
+  weights <- seq(M - 1, 1, by = -1)
+  
+  # Create a copy of the matrix to hold weighted scores
+  weighted_scores <- count_matrix
+  
+  # Apply weights to columns 2 to M
+  for (j in 2:M) {
+    weighted_scores[, j] <- count_matrix[, j] * weights[j - 1]
+  }
+  
+  # Calculate the weighted totals (row sums) starting from column 2
+  weighted_totals <- rowSums(weighted_scores[, -1])
+  
+  # Combine the first column and weighted totals into a data frame
+  result <- data.frame(FirstColumn = count_matrix[, 1], WeightedTotals = weighted_totals)
+  
+  return(result) # Note results is a data frame
+}
+
+
+# #### Lowest Borda Count (freak ties possible) Function #### #
+
+# This function inputs the current preference profile and finds the candidate(s)
+# with the lowest Borda Count and removes them from the preference profile
+
+eliminate_lowest_borda <- function(pref_profiles) {
+  
+  # initiates the variable no_winner to FALSE
+  no_winner <- FALSE
+  
+  # Calculates the candidate preference counts in each column of pref_profiles
+  count_df <- preference_counts(pref_profiles)
+  # count_df <- as.data.frame(count_df)
+  
+  # Call Borda Count function to calculate each candidate's Borda Count
+  borda_totals <- borda_count(count_df)
+  
+  # Find the minimum Borda Count in the WeightedTotals column
+  min_borda_value <- min(borda_totals$WeightedTotals)
+  # Identifies candidate(s) with lowest Borda total and saves them to values_to_remove
+  values_to_remove <- borda_totals$FirstColumn[borda_totals$WeightedTotals == min_borda_value]
+
+  remaining_values <- unique(as.numeric(unlist(pref_profiles)))
+  
+  if (all(remaining_values %in% values_to_remove)) {
+     # sets no-winner to TRUE
+     no_winner <- TRUE
+     
+     return(list(filtered_prefs = pref_profiles, no_winner = no_winner))
+  }
+  
+  # Function to remove the selected candidate from each row and maintain preference order
+  filtered_prefs <- t(apply(pref_profiles, 1, function(row) {
+    row <- as.numeric(row) # Ensure numeric values
+    row <- row[!row %in% values_to_remove] # Remove the selected value
+    c(row, rep(NA, ncol(pref_profiles) - length(row))) # Pad with NA to maintain consistent dimensions
+  }))
+  
+  # Convert filtered matrix back to a data frame and drop NA columns
+  filtered_prefs <- as.data.frame(filtered_prefs)
+  # removes NA columns
+  filtered_prefs <- filtered_prefs[, colSums(!is.na(filtered_prefs)) > 0]
+  filtered_prefs <- as.data.frame(filtered_prefs) 
+  colnames(filtered_prefs) <- paste0("V", seq_len(ncol(filtered_prefs)))
+  
+  # Check if only one column remains - that means there is a winner and the 
+  # winner can be reported without more steps (ending it here also prevents an
+  # error problem with the data frame being reduced to on column)
+  if (ncol(filtered_prefs) == 1) {
+  # returns the filtered_prefs df and no-winner = FALSE when function is called
+  
+  return(list(filtered_prefs = filtered_prefs, no_winner = FALSE, winner = filtered_prefs[[1,1]]))
+  }
+
+  return(list(filtered_prefs = filtered_prefs, no_winner = no_winner))
+  
+}
+
+# ##### Finds winner of Borda Count (with no ties) ##### #
+
+winner_LBC <- function(updated_prefs, N, t, column, output_df) {
+  
+  # See previous winner functions for comments
+  # Loops until a winner is identified 
+  for (i in 1:A) {
+    
+    # calculates counts for each candidate for each ranking (first, second, ...)  
+    counts_matrix <- preference_counts(updated_prefs)
+    
+    # # calculates counts for each candidate for each ranking (first, second, ...)  
+    # counts_matrix <- preference_counts(updated_prefs)
+    
+    # calls majority_winner to see if there is one and returns winner number to output_df
+    winner_return <- majority_winner(counts_matrix, N, t, column, output_df)
+    output_df <- winner_return$output_df
+    
+    # If there was a winner then the loop ends and returns output_df with the 
+    # winning candidate number in the correct row and column. If no winner yet, 
+    # it goes to next section of the function.
+    
+    if (winner_return$winner == TRUE) {
+      return(output_df)
+    }
+    
+    # This saves the returned output from eliminate_lowest_broda list in return.
+    # It gets here if there is no majority winner in the iteration and so 
+    # it runs the elimination function
+    
+    result <- eliminate_lowest_borda(updated_prefs)
+    updated_prefs <- result$filtered_prefs 
+    no_winner <- result$no_winner
+    winner <- result$winner 
+    
+    # no-winner = TRUE means that all candidates were remaining candidates were
+    # eliminated at the same time. If no_winner = FALSE then the loop doesn't 
+    # break and iterates again.
+    if (no_winner == TRUE) {
+      output_df[t, column] <- 0 # equal 0 means there was no winner
+      return(output_df)
+    }
+    
+    # This is only true when there is only one candidate remaining so winning
+    #candidate number is put in output_df and the function returns
+    if (length(winner) != 0) {
+      output_df[t, column] <- winner # returned when there is only one candidate remaining
+      return(output_df)
+    }
+    
+    # This updates the preference profile unless there was a winner or there was 
+    # a no winner and thus the function updated output_df and returned earlier.
+    
+    updated_prefs <- result$filtered_prefs
+    
+  }
+}
+
+
+##### Finds Condorcet Winner and Loser #####
+
+condorcet <- function(pref_profile) {
+  
+  # Initialize the comparison matrix that holds head-to-head match up results
+  # entries are the number of times the row candidate beats the column candidate
+  comparison_matrix <- matrix(0, nrow = A, ncol = A)
+  
+  # Populate the comparison matrix with results of head-to-head match ups
+  for (row in 1:nrow(pref_profile)) {
+    for (i in 1:A) {
+      for (j in 1:A) {
+        if (i != j && which(pref_profile[row, ] == i) < which(pref_profile[row, ] == j)) {
+          comparison_matrix[i, j] <- comparison_matrix[i, j] + 1
+        }
+        if (i == j) {
+          # Comparisons of candidates versus themselves inputs N/2
+          comparison_matrix[i, j] <- N/2
+        }
+      }
+    }
+  }
+  
+  # Define the threshold for winning a head-to-head comparison if there are an
+  # of umber of candidates
+  threshold <- N / 2 
+  
+  # Check for Condorcet winner and identify the winner
+  # NTE: For now, this is only valid for odd N
+  
+  winner <- which(apply(comparison_matrix, 1, function(row) all(row[-which.max(row)] >= threshold - .25)))
+  
+  # Set winner = 0 if there is no Condorcet winner
+  winner <- if (length(winner) == 0) 0L else winner
+  
+  # Check for Condorcet loser and identify loser
+  # Note that 0.25 is subtracted from threshold for CW for cases with even 
+  # number of candidates. If 0.25 not added for Condorcet loser comparisons, 
+  # a CL would not be identified because they would not lose to themselves.
+  
+  loser <- which(apply(comparison_matrix, 1, function(row) all(row[-which.min(row)] <= threshold + .25)))
+  
+  # Set loser = 0  if there is no Condorcet loser
+  loser <- if (length(loser) == 0) 0L else loser
+  
+  #returns the CW and CL candidate numbers 
+  return(list(winner = winner, loser = loser))
+}
+
+
+
+################################################################################
+# Independence of Eliminated Alternatives Function #
+################################################################################
+
+# Function removes candidates from the pref profile one at a time and return the 
+# resulting preference profile to the main body for use in LFP, MLP, and LBC
+# functions
+
+remove_ith_candidate <- function(df, i) {
+  # Replace occurrences of i with NA
+  df[df == i] <- NA
+  # Remove NA values from each row
+  result <- t(apply(df, 1, na.omit))
+  # Convert back to a data frame
+  result <- as.data.frame(result)
+  return(result)
+}
+
+
+
+# ########################### Main Body of Program #############################
+
+set.seed(12345)
+
+for (t in 1: T){
+
+  # Writes simulation number to output data frame
+  output_df[t, 1] <- t
+  
+  # This creates the preference profile for this iteration
+  pref_profile <- pref_profile_generator(N, A)
+  pref_profile <- as.data.frame(pref_profile)
+  
+  # Initialize updated_prefs to current iteration preference profile
+  updated_prefs <- pref_profile
+
+  # Determine Condorcet Winner and Loser for this iteration of t by calling condorcet() function
+  cond <- condorcet(updated_prefs)
+  cw <- cond$winner
+  cl <- cond$loser
+  output_df[t,4] <- cw
+  output_df[t,5] <- cl
+  
+  # Create reversal symmetry profiles
+  rev_prefs <- t(apply(pref_profile, 1, rev))
+  rev_prefs <- as.data.frame(rev_prefs)
+ 
+  
+
+  ################## Subsection: LFP ###################
+  
+  # ###### Finds LFP winner for current pref profile ###### #  
+    
+  
+  # Specifies that this winner is written to the 1st column of output_df
+  column <- 1
+  output_df <- winner_LFP(updated_prefs, N, t, column, output_df)
+  
+  # Find reversal symmetry LFP winner 
+  column <- 6
+  updated_prefs <- rev_prefs
+  # output reversal LFP winner to output_df for future comparison
+  output_df <- winner_LFP(updated_prefs, N, t, column, output_df)  
+
+
+  # This loop runs through the possible candidate numbers.
+  # The setdiff command removes the actual LFP winner from the loop. 
+  for (i in setdiff(1:A, output_df[t, 1])) {
+      
+    # Non-winning candidates are removed one at a time until either (1) no 
+    # result differs from LFP or (2) a different winner from LFP is found and 
+    # the loop breaks.
+  
+    updated_prefs <- pref_profile
+    # removes candidates one at a time from pref_profile to get a new pref profile
+    IEA_prefs <- remove_ith_candidate(updated_prefs, i)
+    # Specifies column to hold current IEA winner for comparison to LFP winner
+    column <- 9
+    # Uses LFP functions to find winner for pref profiles with one non-winning
+    # candidate removed
+    output_df <- winner_LFP(IEA_prefs, N, t, column, output_df)
+      
+    # breaks for loop if a difference is found between the original winner and an IEA winner
+      if (output_df[t, 9] != output_df[t, 1]) {
+        break
+      }
+    }
+    
+  
+    
+  ################## Subsection: MLP ###################
+    
+      
+  # ###### Finds MLP winner for current pref profile ###### #  
+     
+  # Specifies that this winner is written to the 2nd column of output_df
+     column <- 2
+  
+  # Re-initializes Preference profiles for current voting process
+     updated_prefs <- pref_profile
+     output_df <- winner_MLP(updated_prefs, N, t, column, output_df) 
+   
+     # Find reversal symmetry MLP winner
+     column <- 7
+     updated_prefs <- rev_prefs
+     # output reversal MLP winner to output_df for future comparison
+     output_df <- winner_MLP(updated_prefs, N, t, column, output_df)  
+     
+     # Find IEA MLP winners
+     
+     
+     # This loop runs through the possible candidate numbers.
+     # The setdiff command removes the actual MLP winner from the loop. 
+     for (i in setdiff(1:A, output_df[t, 2])) {
+       
+       # Non-winning candidates are removed one at a time until either (1) no 
+       # result differs from MLP or (2) a different winner from MLP is found  
+       # and the loop breaks.
+         
+       updated_prefs <- pref_profile
+       # removes candidates one at a time from pref_profile to get a new pref profile
+       IEA_prefs <- remove_ith_candidate(updated_prefs, i)
+       # Specifies column to hold current IEA winner for comparison to MLP winner
+       column <- 10
+       # Uses MLP functions to find winner for pref profiles with one non-winning
+       # candidate removed
+       output_df <- winner_MLP(IEA_prefs, N, t, column, output_df)
+
+       # The loop breaks if an IEA winner is found that is different from the
+       # original winner as no further searching is needed since a violation has 
+       #already occured
+       if (output_df[t, 10] != output_df[t, 2]) {
+           break
+         }
+     }
+   
+   
+  ############### Subsection: LBC ###################
+   
+   
+  # ###### Finds LBC winner for current pref profile ###### #    
+
+    # Specifies that this winner is written to the 3rd column of output_df
+    column <- 3
+     
+    # Re-initializes Preference profiles for current voting process
+    updated_prefs <- pref_profile
+    # finds LBC winner and writes winner number to output_df
+    output_df <- winner_LBC(updated_prefs,N, t, column, output_df)
+  
+    # Find reversal symmetry LBC winner
+    column <- 8
+    updated_prefs <- rev_prefs
+    # output reversal LBC winner to output_df for future comparison
+    output_df <- winner_LBC(updated_prefs, N, t, column, output_df)  
+    
+
+    # Find IEA LBC winners
+    
+    # This loops through all candidate numbers (1:A) possible values with the 
+    # actual LBC winner in simulation t excluded using the setdiff command. 
+    for (i in setdiff(0:A, output_df[t, 3])) {
+      
+      # Non-winning candidates are removed one at a time until either (1) no 
+      # result differs from LBC and loop ends or (2) a different winner from LBC 
+      # is found in which case the and the loop breaks.
+        
+      updated_prefs <- pref_profile
+      # removes candidates one at a time from pref_profile to get a new pref profile
+      IEA_prefs <- remove_ith_candidate(updated_prefs, i)
+      # Specifies column to hold current IEA winner for comparison to LBC winner
+      column <- 11
+      # Uses LBC functions to find winner for pref profiles with one non-winning
+      # candidate removed
+      output_df <- winner_LBC(IEA_prefs, N, t, column, output_df)
+        
+      # Compares current IEA iteration to original LBC winner and breks loop if 
+      # they differ. 
+      if (output_df[t, 11] != output_df[t, 3]) {
+        break
+      }
+    }
+  
+# end t loop   
+} 
+
+# Initialize comparison data frame to store criteria comparisons
+comparison_df <- data.frame(
+  LFP.CW = NA, # Least First Place versus Condorcet Winner comparison result column
+  LFP.CL = NA, # Least First Place versus Condorcet Loser comparison result column
+  LFP.Rev = NA, # Least First Place versus Rev Sym winner comparison result column
+  LFP.IEA = NA, # Least First Place versus IEA comparison result column
+  MLP.CW = NA, # Most Last Place versus Condorcet Winner comparison result column
+  MLP.CL = NA, # Most Last Place versus Condorcet Loser comparison result column
+  MLP.Rev = NA, # Most Last Place versus  Rev Sym winner comparison result column
+  MLP.IEA = NA, # Most Last Place versus IEA comparison result column
+  LBC.CW = NA, # Lowest Borda Count versus Condorcet Winner comparison result column
+  LBC.CL = NA, # Lowest Borda Count versus Condorcet Loser comparison result column
+  LBC.Rev = NA, # Lowest Borda Count versus Rev Sym winner comparison result column
+  LBC.IEA = NA, # Lowest Borda Count versus IEA comparison result column
+  stringsAsFactors = FALSE
+)
+
+# Give output_df T rows
+comparison_df <- comparison_df[rep(1, T), ]
+# This gets rows numbers equal to sequential integers (instead of 1, 1.1, 1.2,...)
+rownames(comparison_df) <- NULL
+
+
+#### This section makes comparisons based on the information in output_df ####
+
+# Vectorized logic for three rules and CW column. Examines whether is a CW, if so, 
+# does each rule cause a violation in a trial (Fail) or no (Pass)
+
+# This begins by writing "NO CW" if there was no Condorcet winner
+comparison_df$LFP.CW <- ifelse(output_df$CW == 0, "No CW",
+                          # if there was a CW, this examines cases where there was a CW but not an LFP winner: writes "no winner"
+                          ifelse(output_df$CW != 0 & output_df$LFP == 0, "No Winner", 
+                            # if there was an LFP winner, this compares that winner to CW and writes "Pass" if they are the same
+                            ifelse(output_df$CW != 0 & output_df$LFP == output_df$CW, "Pass",
+                              # This compares the LFP winner and CW and writes "Fail" if they are different
+                              ifelse(output_df$CW != 0 & output_df$LFP != output_df$CW, "Fail", NA))))
+
+# This begins by writing "NO CW" if there was no Condorcet winner
+comparison_df$MLP.CW <- ifelse(output_df$CW == 0, "No CW",
+                          # if there was a CW, this examines cases where there was a CW but not an MLP winner: writes "no winner"
+                          ifelse(output_df$CW != 0 & output_df$MLP == 0, "No Winner", 
+                            # if there was an MLP winner, this compares that winner to CW and writes "Pass" if they are the same
+                            ifelse(output_df$CW != 0 & output_df$MLP == output_df$CW, "Pass",
+                              # This compares the MLP winner and CW and writes "Fail" if they are different
+                              ifelse(output_df$CW != 0 & output_df$MLP != output_df$CW, "Fail", NA))))
+
+# This begins by writing "NO CW" if there was no Condorcet winner
+comparison_df$LBC.CW <- ifelse(output_df$CW == 0, "No CW",
+                          # if there was a CW, this examines cases where there was a CW but not an LBC winner: writes "no winner"
+                          ifelse(output_df$CW != 0 & output_df$LBC == 0, "No Winner", 
+                            # if there was an LBC winner, this compares that winner to CW and writes "Pass" if they are the same
+                            ifelse(output_df$CW != 0 & output_df$LBC == output_df$CW, "Pass",
+                              # This compares the LBC winner and CW and writes "Fail" if they are different
+                              ifelse(output_df$CW != 0 & output_df$LBC != output_df$CW, "Fail", NA))))
+
+# Vectorized logic for three rules and CL column. Examines Pass/Fail for each trial
+
+# This begins by writing "NO CL" if there was no Condorcet Loser
+comparison_df$LFP.CL <- ifelse(output_df$CL == 0, "No CL",
+                          # if there was a CL, this examines cases where there was a CL but not an LFP winner: writes "no winner"
+                          ifelse(output_df$CL != 0 & output_df$LFP == 0, "No Winner", 
+                            # if there was an LFP winner, this compares that winner to CL and writes "Fail" if they are the same
+                            ifelse(output_df$CL != 0 & output_df$LFP == output_df$CL, "Fail",
+                              # This compares the LFP winner and CL and writes "Pass" if they are different
+                              ifelse(output_df$CL != 0 & output_df$LFP != output_df$CL, "Pass", NA))))
+
+# This begins by writing "NO CL" if there was no Condorcet Loser
+comparison_df$MLP.CL <- ifelse(output_df$CL == 0, "No CL",
+                          # if there was a CL, this examines cases where there was a CL but not an MLP winner: writes "no winner"
+                          ifelse(output_df$CL != 0 & output_df$MLP == 0, "No Winner", 
+                            # if there was an MLP winner, this compares that winner to CL and writes "Fail" if they are the same
+                            ifelse(output_df$CL != 0 & output_df$MLP == output_df$CL, "Fail",
+                              # This compares the MLP winner and CL and writes "Pass" if they are different
+                              ifelse(output_df$CL != 0 & output_df$MLP != output_df$CL, "Pass", NA))))
+
+# This begins by writing "NO CL" if there was no Condorcet Loser
+comparison_df$LBC.CL <- ifelse(output_df$CL == 0, "No CL",
+                          # if there was a CL, this examines cases where there was a CL but not an LBC winner: writes "no winner"
+                          ifelse(output_df$CL != 0 & output_df$LBC == 0, "No Winner", 
+                            # if there was an LBC winner, this compares that winner to CL and writes "Fail" if they are the same
+                            ifelse(output_df$CL != 0 & output_df$LBC == output_df$CL, "Fail",
+                              # This compares the LBC winner and CL and writes "Pass" if they are different
+                              ifelse(output_df$CL != 0 & output_df$LBC != output_df$CL, "Pass", NA))))
+
+
+#### Reversal Symmetry comparisons ####
+
+# Vectorized logic for LFP.Rev column. Examines for Pass/Fail
+
+# Fail entered in comparison df if original winner the same as the Reversal winner
+comparison_df$LFP.Rev <- ifelse(output_df$LFP == output_df$Rev.LFP, "Fail",
+                                # This says if there was an LFP winner and that winner is different than the reversal symmetry winner, write "Pass"
+                                ifelse(output_df$LFP != output_df$Rev.LFP, "Pass", NA))
+
+# Vectorized logic for LFP.Rev column
+# Fail entered in comparison df if original winner the same as the Reversal winner
+comparison_df$MLP.Rev <- ifelse(output_df$MLP == output_df$Rev.MLP, "Fail",
+                                # This says if there was an MLP winner and that winner is different than the reversal symmetry winner, write "Pass"
+                                ifelse(output_df$MLP != output_df$Rev.MLP, "Pass", NA))
+
+# Vectorized logic for LFP.Rev column
+# Fail entered in comparison df if original winner the same as the Reversal winner
+comparison_df$LBC.Rev <- ifelse(output_df$LBC == output_df$Rev.LBC, "Fail",
+                                # This says if there was an LBC winner and that winner is different than the reversal symmetry winner, write "Pass"
+                                ifelse(output_df$LBC != output_df$Rev.LBC, "Pass", NA))
+
+#### IEA Comparisons ####
+
+# Vectorized logic for LFP.IEA column. Examines for Pass/Fail
+# This begins by writing "Pass" if there every IEA removal gives the same winner as LFP
+comparison_df$LFP.IEA <- ifelse(output_df$LFP == output_df$IEA.LFP, "Pass",
+                                       # This says if there was a different IEA removal winner than the LFP winner, write "Fail"
+                                       ifelse(output_df$LFP != output_df$IEA.LFP, "Fail", NA))
+
+
+# Vectorized logic for MLP.IEA column
+# This begins by writing "Pass" if there every IEA removal gives the same winner as MLP
+comparison_df$MLP.IEA <- ifelse(output_df$MLP == output_df$IEA.MLP, "Pass",
+                                # This says if there was a different IEA removal winner than the MLP winner, write "Fail"
+                                       ifelse(output_df$MLP != output_df$IEA.MLP, "Fail", NA))
+
+
+# Vectorized logic for LC.IEA column
+# This begins by writing "Pass" if there every IEA removal gives the same winner as LBC
+comparison_df$LBC.IEA <- ifelse(output_df$LBC == output_df$IEA.LBC, "Pass",
+                                       # This says if there was a different IEA removal winner than the LBC winner, write "Fail"
+                                       ifelse(output_df$LBC != output_df$IEA.LBC, "Fail", NA))
+
+
+############ Conditional Comparisons (no winner cases taken out) ##############
+
+# This adds LFP, MLP, and LBC winner columns from output_df to the comparison_df 
+# so that no winner results can be filtered out
+cond_comparison_df <- cbind(comparison_df, output_df[, c("LFP", "MLP", "LBC")])
+
+# This filters out the no winner rows for each elimination rule and creates a 
+# comparison data frame for each
+cond_comparison_LFP <- filter(cond_comparison_df, LFP != 0)
+cond_comparison_MLP <- filter(cond_comparison_df, MLP != 0)
+cond_comparison_LBC <- filter(cond_comparison_df, LBC != 0)
+
+# This removes the LFP, MLP, and LBC columns for cleanliness
+cond_comparison_LFP <- cond_comparison_LFP %>% select(-LFP, -MLP, -LBC)
+cond_comparison_MLP <- cond_comparison_MLP %>% select(-LFP, -MLP, -LBC)
+cond_comparison_LBC <- cond_comparison_LBC %>% select(-LFP, -MLP, -LBC)
+
+
+# These are necessary to know how many trials remain after no winner results are 
+# removed so that it can be used in the denominator of frequency calculations
+T_LFP <- nrow(cond_comparison_LFP) 
+T_MLP <- nrow(cond_comparison_MLP)
+T_LBC <- nrow(cond_comparison_LBC)
+
+# Here I create three data frames, one for each elimination rule. I did this to 
+# so that I could check the outputs easier as I coded. I simply merge these later
+# to get one big results data frame in the end.
+results_LFP <- data.frame(
+  LFP.CW = c(NA,NA), # CW violation frequency by LFP
+  LFP.CL = c(NA,NA), # CL violation frequency by LFP
+  LFP.Rev = c(NA,NA), # Rev Symm violation frequency by LFP
+  LFP.IEA = c(NA,NA), # IEA violation frequency by LFP
+  CW_count_LFP = c(NA,NA), # number of rows with a CW winner in LFP 
+  CL_count_LFP = c(NA,NA), # number of rows with a CL winner in LFP 
+  no_winner_LFP = c(NA,NA), # number of rows with a no winner result in LFP 
+  row.names = c("Unconditional", "Conditional"),
+  stringsAsFactors = FALSE
+)
+
+
+results_MLP <- data.frame(
+  MLP.CW = c(NA,NA), # CW violation frequency by MLP
+  MLP.CL = c(NA,NA), # CL violation frequency by MLP
+  MLP.Rev = c(NA,NA), # Rev Symm violation frequency by MLP
+  MLP.IEA = c(NA,NA), # IEA violation frequency by MLP
+  CW_count_MLP = c(NA,NA), # rows with a CW winner in MLP
+  CL_count_MLP = c(NA,NA), # number of rows with a CL winner in MLP 
+  no_winner_MLP = c(NA,NA), # number of rows with a no winner result in MLP 
+  row.names = c("Unconditional", "Conditional"),
+  stringsAsFactors = FALSE
+)
+
+
+results_LBC <- data.frame(
+  LBC.CW = c(NA,NA), # CW violation frequency by LBC
+  LBC.CL = c(NA,NA), # CL violation frequency by LBC
+  LBC.Rev = c(NA,NA), # Rev Symm violation frequency by LBC
+  LBC.IEA = c(NA,NA), # IEA violation frequency by LBC
+  CW_count_LBC = c(NA,NA), # rows with a CW winner in LBC
+  CL_count_LBC = c(NA,NA), # number of rows with a CL winner in LFP
+  no_winner_LBC = c(NA,NA), # number of rows with a no winner result in LBC 
+  row.names = c("Unconditional", "Conditional"),
+  stringsAsFactors = FALSE
+)
+
+
+### This section makes comparisons based on the information in only comparison dfs### 
+
+# This counts no winner cases for each rule and adds them to the appropriate results df
+no_winner_LFP_count <- sum(output_df$LFP == 0, na.rm = TRUE)
+results_LFP[1,"no_winner_LFP"] <- no_winner_LFP_count
+results_LFP[2,"no_winner_LFP"] <- 0
+
+no_winner_MLP_count <- sum(output_df$MLP == 0, na.rm = TRUE)
+results_MLP[1,"no_winner_MLP"] <- no_winner_MLP_count
+results_MLP[2,"no_winner_MLP"] <- 0
+
+no_winner_LBC_count <- sum(output_df$LBC == 0, na.rm = TRUE)
+results_LBC[1,"no_winner_LBC"] <- no_winner_LBC_count
+results_LBC[2,"no_winner_LBC"] <- 0
+
+
+
+# Calculates LFP frequencies
+
+# number of times there was not a CW to be used in denominator of frequency calculation
+no_CW_LFP_count <- sum(comparison_df$LFP.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_LFP[1,"CW_count_LFP"] <- T - no_CW_LFP_count
+# number of times there was not an LFP winner, given that there was a CW
+no_winner_CW_LFP_count <- sum(comparison_df$LFP.CW == "No Winner", na.rm = TRUE)
+# number of times LFP failed the CW criteria, given that there was a CW and a winner
+fail_LFP_CW_count <- sum(comparison_df$LFP.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LFP.CW
+results_LFP[1,"LFP.CW"] <- (no_winner_CW_LFP_count + fail_LFP_CW_count) / (T - no_CW_LFP_count)
+
+
+# Generates No CL percentage and violation frequencies in LFP
+# number of times there was not a CL
+no_CL_LFP_count <- sum(comparison_df$LFP.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_LFP[1,"CL_count_LFP"] <- T - no_CL_LFP_count
+# number of times there was not an LFP winner, given that there was not a CL
+no_winner_CL_LFP_count <- sum(comparison_df$LFP.CL == "No Winner", na.rm = TRUE)
+# number of times LFP failed the CL criteria, given that there was a CL
+fail_LFP_CL_count <- sum(comparison_df$LFP.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LFP.CL
+results_LFP[1,"LFP.CL"] <- (fail_LFP_CL_count) / (T - no_CL_LFP_count)
+
+# Generate No CW percentage and  and violation frequencies in MLP
+# number of times there was not a CW
+no_CW_MLP_count <- sum(comparison_df$MLP.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_MLP[1,"CW_count_MLP"] <- T - no_CW_MLP_count
+# number of times there was not an MLP winner, given that there was not a CW
+no_winner_CW_MLP_count <- sum(comparison_df$MLP.CW == "No Winner", na.rm = TRUE)
+# number of times MLP failed the CW criteria, given that there was a CW
+fail_MLP_CW_count <- sum(comparison_df$MLP.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for MLP.CW
+results_MLP[1,"MLP.CW"] <- (no_winner_CW_MLP_count + fail_MLP_CW_count) / (T - no_CW_MLP_count)
+
+# Generate No CL percentage and  and violation frequencies in MLP
+# number of times there was not a CL
+no_CL_MLP_count <- sum(comparison_df$MLP.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_MLP[1,"CL_count_MLP"] <- T - no_CL_MLP_count
+# number of times there was not an MLP winner, given that there was not a CL
+no_winner_CL_MLP_count <- sum(comparison_df$MLP.CL == "No Winner", na.rm = TRUE)
+# number of times MLP failed the CL criteria, given that there was a CL
+fail_MLP_CL_count <- sum(comparison_df$MLP.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for MLP.CL
+results_MLP[1,"MLP.CL"] <- (fail_MLP_CL_count) / (T - no_CL_MLP_count)
+
+# Generate No CW percentage and  and violation frequencies in LBC
+# number of times there was not a CW
+no_CW_LBC_count <- sum(comparison_df$LBC.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_LBC[1,"CW_count_LBC"] <- T - no_CW_LBC_count
+# number of times there was not an LBC winner, given that there was not a CW
+no_winner_CW_LBC_count <- sum(comparison_df$LBC.CW == "No Winner", na.rm = TRUE)
+# number of times LBC failed the CW criteria, given that there was a CW
+fail_LBC_CW_count <- sum(comparison_df$LBC.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LBC.CW
+results_LBC[1,"LBC.CW"] <- (no_winner_CW_LBC_count + fail_LBC_CW_count) / (T - no_CW_LBC_count)
+
+# Generate No CL percentage and  and violation frequencies in LBC
+# number of times there was not a CL
+no_CL_LBC_count <- sum(comparison_df$LBC.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_LBC[1,"CL_count_LBC"] <- T - no_CL_LBC_count
+# number of times there was not an LBC winner, given that there was not a CL
+no_winner_CL_LBC_count <- sum(comparison_df$LBC.CL == "No Winner", na.rm = TRUE)
+# number of times LBC failed the CL criteria, given that there was a CL
+fail_LBC_CL_count <- sum(comparison_df$LBC.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LBC.CL
+results_LBC[1,"LBC.CL"] <- (fail_LBC_CL_count) / (T - no_CL_LBC_count)
+
+
+#### Reversal Symmetry Results ####
+
+#### LFP Reversal Symmetry ####
+
+# number of Fails in LFP versus Reversal Symmetry
+fail_LFP_Rev_count <- sum(comparison_df$LFP.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in LFP
+results_LFP[1,"LFP.Rev"] <- (fail_LFP_Rev_count) / T
+
+# MLP Reversal Symmetry
+
+# number of Fails in MLP versus Reversal Symmetry
+fail_MLP_Rev_count <- sum(comparison_df$MLP.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in MLP
+results_MLP[1,"MLP.Rev"] <- (fail_MLP_Rev_count) / T
+
+# LBC versus Reversal Symmetry
+
+# number of Fails in LBC versus Reversal Symmetry
+fail_LBC_Rev_count <- sum(comparison_df$LBC.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in LBC
+results_LBC[1,"LBC.Rev"] <- (fail_LBC_Rev_count) / T
+
+#### IEA Results ####
+
+# LFP versus IEA 
+
+# number of Fails in LFP versus IEA
+fail_LFP_IEA_count <- sum(comparison_df$LFP.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in LFP with IEA
+results_LFP[1,"LFP.IEA"] <- (fail_LFP_IEA_count) / T 
+
+# MLP IEA
+
+# number of Fails in MLP versus IEA
+fail_MLP_IEA_count <- sum(comparison_df$MLP.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in MLP with IEA
+results_MLP[1,"MLP.IEA"] <- (fail_MLP_IEA_count) / T
+
+# LBC versus IEA
+
+# number of Fails in LBC versus IEA
+fail_LBC_IEA_count <- sum(comparison_df$LBC.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in LBC with IEA
+results_LBC[1,"LBC.IEA"] <- (fail_LBC_IEA_count) / T
+
+
+
+################### CW and CL conditional results ####################
+
+# Generate No CW percentage and frequency ratios in LFP
+
+# number of times there was not a CW to be used in denominator of frequency calculation
+cond_no_CW_LFP_count <- sum(cond_comparison_LFP$LFP.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_LFP[2,"CW_count_LFP"] <- T_LFP - cond_no_CW_LFP_count
+# number of times there was not an LFP winner, given that there was a CW
+cond_no_winner_CW_LFP_count <- sum(cond_comparison_LFP$LFP.CW == "No Winner", na.rm = TRUE)
+# number of times LFP failed the CW criteria, given that there was a CW and a winner
+cond_fail_LFP_CW_count <- sum(cond_comparison_LFP$LFP.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LFP.CW
+results_LFP[2,"LFP.CW"] <- (cond_no_winner_CW_LFP_count + cond_fail_LFP_CW_count) / (T_LFP - cond_no_CW_LFP_count)
+
+
+# Generate No CL percentage and frequency ratios in LFP
+# number of times there was not a CL
+cond_no_CL_LFP_count <- sum(cond_comparison_LFP$LFP.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_LFP[2,"CL_count_LFP"] <- T_LFP - cond_no_CL_LFP_count
+# number of times there was not an LFP winner, given that there was not a CL
+cond_no_winner_CL_LFP_count <- sum(cond_comparison_LFP$LFP.CL == "No Winner", na.rm = TRUE)
+# number of times LFP failed the CL criteria, given that there was a CL
+cond_fail_LFP_CL_count <- sum(cond_comparison_LFP$LFP.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LFP.CL
+results_LFP[2,"LFP.CL"] <- (cond_fail_LFP_CL_count) / (T_LFP - cond_no_CL_LFP_count)
+
+# Generate No CW percentage and frequency ratios in MLP
+# number of times there was not a CW
+cond_no_CW_MLP_count <- sum(cond_comparison_MLP$MLP.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_MLP[2,"CW_count_MLP"] <- T_MLP - cond_no_CW_MLP_count
+# number of times there was not an MLP winner, given that there was not a CW
+cond_no_winner_CW_MLP_count <- sum(cond_comparison_MLP$MLP.CW == "No Winner", na.rm = TRUE)
+# number of times MLP failed the CW criteria, given that there was a CW
+cond_fail_MLP_CW_count <- sum(cond_comparison_MLP$MLP.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for MLP.CW
+results_MLP[2,"MLP.CW"] <- (cond_no_winner_CW_MLP_count + cond_fail_MLP_CW_count) / (T_MLP - cond_no_CW_MLP_count)
+
+# Generate No CL percentage and frequency ratios in MLP
+# number of times there was not a CL
+cond_no_CL_MLP_count <- sum(cond_comparison_MLP$MLP.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_MLP[2,"CL_count_MLP"] <- T_MLP - cond_no_CL_MLP_count
+# number of times there was not an MLP winner, given that there was not a CL
+cond_no_winner_CL_MLP_count <- sum(cond_comparison_MLP$MLP.CL == "No Winner", na.rm = TRUE)
+# number of times MLP failed the CL criteria, given that there was a CL
+cond_fail_MLP_CL_count <- sum(cond_comparison_MLP$MLP.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequencies in MLP.CL
+results_MLP[2,"MLP.CL"] <- (cond_fail_MLP_CL_count) / (T_MLP - cond_no_CL_MLP_count)
+
+# Generate No CW percentage and frequency ratios in LBC
+# number of times there was not a CW
+cond_no_CW_LBC_count <- sum(cond_comparison_LBC$LBC.CW == "No CW", na.rm = TRUE)
+# Writes number of times out of T there was a CW
+results_LBC[2,"CW_count_LBC"] <- T_LBC - cond_no_CW_LBC_count
+# number of times there was not an LBC winner, given that there was not a CW
+cond_no_winner_CW_LBC_count <- sum(cond_comparison_LBC$LBC.CW == "No Winner", na.rm = TRUE)
+# number of times LBC failed the CW criteria, given that there was a CW
+cond_fail_LBC_CW_count <- sum(cond_comparison_LBC$LBC.CW == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LBC.CW
+results_LBC[2,"LBC.CW"] <- (cond_no_winner_CW_LBC_count + cond_fail_LBC_CW_count) / (T_LBC - cond_no_CW_LBC_count)
+
+# Generate No CL percentage and frequency ratios in LBC
+# number of times there was not a CL
+cond_no_CL_LBC_count <- sum(cond_comparison_LBC$LBC.CL == "No CL", na.rm = TRUE)
+# Writes number of times out of T there was a CL
+results_LBC[2,"CL_count_LBC"] <- T_LBC - cond_no_CL_LBC_count
+# number of times there was not an LBC winner, given that there was not a CL
+cond_no_winner_CL_LBC_count <- sum(cond_comparison_LBC$LBC.CL == "No Winner", na.rm = TRUE)
+# number of times LBC failed the CL criteria, given that there was a CL
+cond_fail_LBC_CL_count <- sum(cond_comparison_LBC$LBC.CL == "Fail", na.rm = TRUE)
+
+# unconditional fail frequency for LBC.CL
+results_LBC[2,"LBC.CL"] <- (cond_fail_LBC_CL_count) / (T_LBC - cond_no_CL_LBC_count)
+
+
+#### Reversal Symmetry Conditional Results ####
+
+#### LFP Reversal Symmetry ####
+
+# number of Fails in LFP versus Reversal Symmetry
+cond_fail_LFP_Rev_count <- sum(cond_comparison_LFP$LFP.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in LFP
+results_LFP[2,"LFP.Rev"] <- (cond_fail_LFP_Rev_count) / T_LFP
+
+# MLP Reversal Symmetry
+
+# number of Fails in MLP versus Reversal Symmetry
+cond_fail_MLP_Rev_count <- sum(cond_comparison_MLP$MLP.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in MLP
+results_MLP[2,"MLP.Rev"] <- (cond_fail_MLP_Rev_count) / T_MLP
+
+# LBC versus Reversal Symmetry
+
+# number of Fails in LBC versus Reversal Symmetry
+cond_fail_LBC_Rev_count <- sum(cond_comparison_LBC$LBC.Rev == "Fail", na.rm = TRUE)
+
+# frequency of fails results in LBC
+results_LBC[2,"LBC.Rev"] <- (cond_fail_LBC_Rev_count) / T_LBC
+
+#### IEA Conditional Results ####
+
+# LFP versus IEA 
+
+# number of Fails in LFP versus IEA
+cond_fail_LFP_IEA_count <- sum(cond_comparison_LFP$LFP.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in LFP with IEA
+results_LFP[2,"LFP.IEA"] <- (cond_fail_LFP_IEA_count) / T_LFP
+
+# MLP IEA
+
+# number of Fails in MLP versus IEA
+cond_fail_MLP_IEA_count <- sum(cond_comparison_MLP$MLP.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in MLP with IEA
+results_MLP[2,"MLP.IEA"] <- (cond_fail_MLP_IEA_count) / T_MLP
+
+# LBC versus IEA
+
+# number of Fails in LBC versus IEA
+cond_fail_LBC_IEA_count <- sum(cond_comparison_LBC$LBC.IEA == "Fail", na.rm = TRUE)
+
+# Frequency of Fails in LBC with IEA
+results_LBC[2,"LBC.IEA"] <- (cond_fail_LBC_IEA_count) / T_LBC
+
+# results_MLP <- select(results_MLP, -CW_count, -CL_count)
+# results_LBC <- select(results_LBC, -CW_count, -CL_count)
+
+results_df <- cbind(results_LFP, results_MLP, results_LBC)
+
+
+# Display all results in results_df to three significant digits
+results_df <- as.data.frame(lapply(results_df, function(x) if(is.numeric(x)) format(round(x, 3), nsmall = 3) else x))
+
+
+
+##### The following saves the results data frames to an EXCEL file #####
+
+# I create an save result separately for LFP, MLP, and LBC because the differences 
+# in the number of data frame rows just makes it easier to do it this way and
+# doesn't take very much extra computation time. I then just merge the three results
+# files into one big results files.
+
+# Define the results filename using A and N
+resultsfile <- sprintf("results_A%d_N%d.xlsx", A, N)
+# Write the results_df to an Excel file
+write.xlsx(results_df, file = resultsfile, rowNames = TRUE)
+
+results_LFP <- as.data.frame(lapply(results_LFP, function(x) if(is.numeric(x)) format(round(x, 3), nsmall = 3) else x))
+# Define the results filename using A and N
+resultsLFPfile <- sprintf("results_LFP_A%d_N%d.xlsx", A, N)
+# Write the results_df to an Excel file
+write.xlsx(results_LFP, file = resultsLFPfile, rowNames = TRUE)
+
+results_MLP <- as.data.frame(lapply(results_MLP, function(x) if(is.numeric(x)) format(round(x, 3), nsmall = 3) else x))
+# Define the results filename using A and N
+resultsMLPfile <- sprintf("results_MLP_A%d_N%d.xlsx", A, N)
+# Write the results_df to an Excel file
+write.xlsx(results_MLP, file = resultsMLPfile, rowNames = TRUE)
+
+results_LBC <- as.data.frame(lapply(results_LBC, function(x) if(is.numeric(x)) format(round(x, 3), nsmall = 3) else x))
+# Define the results filename using A and N
+resultsLBCfile <- sprintf("results_LBC_A%d_N%d.xlsx", A, N)
+# Write the results_df to an Excel file
+write.xlsx(results_LBC, file = resultsLBCfile, rowNames = TRUE)
+
+
+# I saved the the output information about winners to an EXCEL file for code checking reasons
+# Define winners filename using A and N
+winnersfile <- sprintf("winners_A%d_N%d.xlsx", A, N)
+# Write the output_df to an Excel file
+write.xlsx(output_df, file = winnersfile, rowNames = TRUE)
+
+# This is the final results file for given numbers A and N  
+# Define winners filename using A and N
+resultsfile <- sprintf("results_A%d_N%d.xlsx", A, N)
+# Write the output_df to an Excel file
+write.xlsx(results_df, file = resultsfile, rowNames = TRUE)
+
+
+end_time <- Sys.time()
+
+execution_time <- end_time - start_time
+print(execution_time)

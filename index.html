@@ -60,6 +60,12 @@
     .cta-link:hover {
       filter: brightness(0.95);
     }
+
+    /* Extra indentation for sub-links */
+    .sub-link {
+      margin-left: 20px;
+      list-style-type: circle;
+    }
   </style>
 </head>
 <body>
@@ -98,11 +104,15 @@
         <section>
           <h2>Research Papers</h2>
           <ul>
-            <li><a href="research/RCV%20Paper1%20-%20Katzman.pdf" target="_blank">Paper Title 1</a></li>
+            <li>
+              <a href="research/RCV%20Paper1%20-%20Katzman.pdf" target="_blank">Paper Title 1</a>
+              <ul>
+                <li class="sub-link"><a href="research/RCV%20Paper1%20-%20Katzman.R" target="_blank">Paper 1 R code</a></li>
+              </ul>
+            </li>
             <li><a href="https://doi.org/XXXX" target="_blank">Paper Title 2</a></li>
             <li><a href="https://doi.org/XXXX" target="_blank">Paper Title 3</a></li>
             <li><a href="https://doi.org/XXXX" target="_blank">Paper Title 4</a></li>
-
           </ul>
         </section>
 

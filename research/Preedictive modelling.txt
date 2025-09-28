@@ -1,0 +1,1136 @@
+---
+title: "Memorandum"
+author: "Spencer Katzman"
+date: "`r Sys.Date()`"
+output: word_document
+always_allow_html: true
+---
+```{r Read in and organize data,echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+hermes <- read_xlsx("hermes.xlsx")
+                    
+#, col_types = cols(Date = col_date(format = "%m/%d/%Y"), 
+#                     Price = col_number()))
+
+hermes2 <- separate(hermes, 
+                    Material, 
+                    into = c("Material", "Finish", "Origin"), 
+                    sep = " ", 
+                    )
+
+
+
+
+hermes2$year <- year(hermes2$Date)
+hermes2$month <- month(hermes2$Date)
+hermes2$day <- day(hermes2$Date)
+#hermes2
+
+```
+
+```{r filering data, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+
+# Adding a time trend column to the Hermes data 
+hermes2 <- hermes2 %>%
+  mutate(time_trend = year - min(year) + 1) %>%
+  mutate(is_crocodile = ifelse(Material == "Crocodile", 1, 0))
+# Filter the dataset to include only rows where Shape is "Birkin"
+hermes2_filtered <- hermes2[hermes2$Shape == "Birkin", ]
+
+
+# View the result
+#print(hermes2)
+```
+
+
+This memorandum provides financial advice for our client Drizzy. Drizzy has obtained a number of valuable Hermes Birkin handbags for personal reasons and is considering acquiring more as an investment. Below, I detail the prospects of Hermes bags as an investment vehicle using regression analysis and computational text analysis. Regression results are based on available auction data (2007 - 2021) and textual analysis is performed on subreddit comments and Hermes annual reports (2016-20124). In the end, I strongly advise against Mr. Drizzy using Hermes handbags as an investment for the reasons detailed below.
+
+
+## Data Desciption and Regression Analysis
+
+I began my analysis by running a regression of auction prices on the size of a bag, the material the bag was made from (alligator or crocodile), the finish of the bag, and the hardware used on the bag. I also included a time trend to investigate whether, holding the characteristics of the bag constant, prices of the bags are increasing over time. Table 1 provides summary statistics for these variables.
+
+```{r summary stats, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Load necessary libraries
+library(readr)  # For reading data
+library(dplyr)  # For data manipulation
+library(knitr)  # For creating tables
+
+# Ensure the Material column is a factor (or numeric/binary)
+Material_column <- as.factor(hermes2_filtered$Material)
+
+# Calculate summary statistics for Price and Material
+summary_table <- data.frame(
+  Statistic = c("Mean", "Median", "Std Dev"),
+  Price = c(
+    mean(hermes2_filtered$Price, na.rm = TRUE),
+    median(hermes2_filtered$Price, na.rm = TRUE),
+    sd(hermes2_filtered$Price, na.rm = TRUE)
+  ),
+  Material = c(
+    mean(hermes2_filtered$is_crocodile, na.rm = TRUE),
+    median(hermes2_filtered$is_crocodile, na.rm = TRUE),
+    sd(hermes2_filtered$is_crocodile, na.rm = TRUE)
+  )
+)
+
+# Create a simple table using kable
+kable(
+  summary_table,
+  format = "pandoc",
+  caption = "Table 1: Summary Statistics for Price and Material",
+)
+
+```
+
+
+
+As Table 1 indicates, approximately 80% of the auctions in the Birkin sample were of crocodile handbags with the other 20% being alligator. Table 1 shows that the average handbag is quite expensive but the standard deviation highlights a great degree of variability in auction prices. Figure 1 examines this variability in more depth using a histogram of auction prices.
+
+```{r histogram, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(ggplot2)
+library(scales)
+ggplot(hermes2_filtered, aes(x = Price)) +
+  geom_histogram(binwidth = 10, fill = "blue", color = "black") +
+  scale_x_continuous(labels = scales::dollar) +
+  labs(title = "Figure 1: Price Histogram", x = "Price (in Dollars)", y = "Frequency") +
+  theme_minimal()
+
+```
+
+
+The regression below attempts to explain the variability in prices using regressors such as size of the handbag, its hardware, and a time trend. Before proceeding to that regression, Figure 2 provides a visual of how auction prices have evolved over time.
+
+```{r scatter plot, echo=FALSE, message=FALSE, warning=FALSE}
+# Load necessary library
+library(ggplot2)
+
+# Sample data frame (replace with your actual data)
+
+# Create scatterplot with a line of best fit
+plot <- ggplot(hermes2_filtered, aes(x = year, y = Price)) +
+  geom_point(color = "blue", size = 1) + # Scatterplot points
+  geom_smooth(method = "lm", se = TRUE, color = "red") + # Line of best fit with confidence interval
+  scale_y_continuous(labels = scales::dollar) +
+  labs(title = "Figure 2: Auction Prices Over Time",
+       x = "Year",
+       y = "Price") +
+  theme_minimal() # Optional theme for a clean look
+
+# Display the plot
+print(plot)
+
+```
+
+As a first look at Birkin bags as an investment, the line of best fit in Figure 2 appears relatively flat indicating that the prices of Hermes handbags are not growing over time. From an investment standpoint, Figure 2 also displays the increasing volatility of Birkin auction prices. in my regression analysis). Both of these traits go against obtaining Birkin handbags as an investment vehicle. Still, these ideas must be further investigated by controlling for other factors that affect value in my regression analysis. On the positive side, Figure 3 shows the expansion of the Birkin auction market since 2015, indicating increased auction demand which should in turn lead to increased auction prices.
+
+```{r counts, echo=FALSE, message=FALSE, warning=FALSE}
+# Load necessary libraries
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# Calculate unique counts
+unique_counts <- table(hermes2_filtered$year)
+
+# Get the number of unique entries
+num_unique_entries <- length(unique(hermes2_filtered$year))
+# cat("Number of unique entries:", num_unique_entries, "\n")
+
+# Define year column (ensure consistency with unique_counts)
+year_column <- as.character(names(unique_counts))
+
+# Create the data frame with years and their respective counts
+table_count <- data.frame(
+  "Year" = year_column,
+  "Counts" = as.integer(unique_counts),
+  check.names = FALSE
+)
+
+# Style and print the table
+#kable(table_count, row.names = FALSE, caption = "Table 1: Number of Handbags Sold per Year") %>%
+#  kable_styling(
+#    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+#    full_width = FALSE,
+#    position = "center"
+#  ) %>%
+#  column_spec(1, bold = TRUE)  # Make the "Year" column bold
+
+# Load necessary library
+library(ggplot2)
+
+# Ensure `year_column` is numeric for plotting
+table_count$Year <- as.numeric(table_count$Year)
+
+# Create the scatterplot
+ggplot(data = table_count, aes(x = Year, y = Counts)) +
+  geom_point(size = 3, color = "blue") +          # Add scatter points
+  #geom_line(group = 1, linetype = "dashed") +     # Optional: Add a line connecting points
+  labs(
+    x = "Year",                                   # X-axis label
+    y = "Number of Bags Auctioned",               # Y-axis label
+    title = "Figure 3: Counts of Handbags Auctioned by Year"
+  ) +
+  theme_minimal()                                # Apply a clean theme
+
+
+```
+
+The results from the regression described above are shown in Table 2 below.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+hermes_reg <- lm(Price ~ Size + as.factor(Material) + as.factor(Finish)  + as.factor(`Color Category`) + as.factor(Hardware) + time_trend, data = hermes2_filtered)
+# summary(hermes_reg)
+
+library(gt)
+library(broom)
+tidy_summary <- tidy(hermes_reg)
+gt_table <- gt(tidy_summary) %>%
+  tab_header(
+    title = "Table 2: Regression Results"
+  ) %>%
+  tab_footnote(
+    footnote = "R-Squared = 0.6752, adj. R-Squared = 0.6676, 937 DF, F-stat = 88.55, p-value < 2.2e-16",
+    locations = cells_title(groups = "title") # You can adjust the location
+  )
+
+gt_table
+```
+
+At a cursory glance, the regression appears to be reliable with an R-squared above 67% and a p-value for the overall model fit near zero. Still Figure 4 (below) shows some issues with the robustness tests. More specifically, the regression results show that crocodile bags, on average, sell for nearly $5,626 less than alligator bags, holding other factors constant. This difference in value is statistically significant at the 95% confidence level. The regression also show statistically significant premia attached to the colors blue, green, hima, yellow, and pink so for investment purposes, Mr. Drizzy may want to focus on those colors. Not surprisingly, bags with PVD and Diamond hardware also sell at statistically significant premia. 
+From an investment standpoint, it is important to note that the time trend coefficient is negative and statistically significant. This aligns with the "flat" line of best fit from Figure 2 and suggests that auction prices are declining over time, all other things being equal. Also, these values are imputed based on auction prices and thus they very well may indicate a winner’s curse where auction prices are inflated above the actual investment value of the bag because of a positive correlation in investor estimates of values. Thus, assuming the auction price represents the true value of a handbag may be dangerous.
+
+Examining Figure 4, the Cook's distance test show that there are a few major outliers (observations 378, 451, 865). Observation 865 should look familiar as it is the Himalayan handbag purchased by Mr. Drizzy. These outliers and the apparent heteroscedasticity suggested in the residuals plot should be examined in more detail although I have confidence that my investment advice will be the same after a more rigorous statistical investigation.
+
+
+```{r regression, echo=FALSE, message=FALSE, warning=FALSE}
+
+par(mfrow = c(2, 2), oma = c(0, 0, 2, 0)) # Set outer margins to allow space for the title
+plot(hermes_reg, which = c(1, 2, 3, 4), sub.caption = "") # Suppress the formula display
+mtext("Figure 4: Regression Robustness Tests", outer = TRUE, cex = 1.5) # Add the title
+
+
+```
+
+
+## Computational Text Analysis of Reddit threads
+
+Next, I pulled information from the TheHermesGame subreddit and conducted computational text analysis. Being unfamiliar with Hermes handbags, this analysis was highly informative and led me to further investigations about Hermes handbags as an investment vehicle. I began by pulling all threads from the subreddit mentioning "Birkin" and conducted sentimentality analysis thereon. 
+
+```{r pull reddit threads, echo=FALSE, message=FALSE, warning=FALSE}
+
+# install.packages("RedditExtractoR")
+
+library(RedditExtractoR)
+
+#threads_all <- suppressMessages(find_thread_urls(keywords = "Birkin", subreddit = "TheHermesGame", sort_by = "hot"))
+
+threads_all <- find_thread_urls(keywords="Hermes", subreddit="TheHermesGame", sort_by="hot")
+#head(threads_all)
+```
+
+After cleaning the data, I was surprised to find that overall sentimentality, although positive, was only 0.097806. After further consideration, this makes sense because the sentimentality score includes posts by individuals who are not potential buyers of Hermes bags and may have negative opinions because they cannot afford the bags. In fact, these "hard feelings" may actually increase the value of bags to those who can afford them. In addition to the telling sentimentality score, the main words found throughout these posts pointed me in the directions for further investigation of Hermes handbag values. They include:
+
+
+
+```{r clean threads, echo=FALSE, message=FALSE, warning=FALSE}
+
+# install.packages("tm")
+# install.packages("Rtools")
+
+library(tm)
+
+documents_all <- Corpus(VectorSource(threads_all$title))
+
+# all lowercase
+clean.documents_all <-  tm_map(documents_all, content_transformer(tolower))
+
+# remove punctuation
+clean.documents_all <-  tm_map(clean.documents_all, content_transformer(removePunctuation))
+
+# remove numbers
+clean.documents_all <-  tm_map(clean.documents_all, content_transformer(removeNumbers))
+
+# strip extra white space
+clean.documents_all <-  tm_map(clean.documents_all, content_transformer(stripWhitespace))
+
+# remove stop words
+freq.documents_all <-  tm_map(clean.documents_all, removeWords, stopwords('SMART'))
+
+tdm_all <-  TermDocumentMatrix(freq.documents_all, control = list(minWordLength=2))
+m_all <-  as.matrix(tdm_all)
+v_all <- sort(rowSums(m_all), decreasing=TRUE)
+
+# display the 9 most frequent words
+#v_all[1:9]
+
+```
+
+
+
+```{r filter based on keyword all, echo=FALSE, message=FALSE, warning=FALSE}
+
+docs.cleaned_all = get("content", clean.documents_all)
+keyword <- " "
+
+# filter array to include only strings with the keyword
+filtered_array_all <- docs.cleaned_all[grep(keyword, docs.cleaned_all)]
+
+# print the filtered array
+# print(filtered_array_all)
+
+```
+
+
+```{r sentiment analysis all, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(sentimentr)
+library(syuzhet)
+
+table_all <- sentiment(filtered_array_all, n.before=0, n.after=0, amplifier.weight=0)
+senti_all <- mean(table_all$sentiment)
+# print(senti_all)
+
+```
+
+
+```{r granular sentiment scores all, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+
+table_all <- cbind(filtered_array_all, table_all$sentiment)
+colnames(table_all) <-  c("docs","sentiment")
+table_all <- data.frame(table_all)
+class(table_all$sentiment) 
+
+table_all$sentiment = as.numeric(table_all$sentiment)
+#table_all %>% 
+#   arrange(desc(abs(sentiment)))
+
+```
+
+
+```{r message=FALSE, echo=FALSE, warning=FALSE}
+
+names_all <- names(v_all)
+d_all <- data.frame(word=names_all, freq=v_all)
+#head(d_all)
+
+```
+
+The following word cloud is informative, particularly for someone inexperienced in the Hermes world. Fore example, the term "Picotin" appears often in the thread, but minimal research shows that Birkin bags do not come in the Picotin style and thus Picotin bags are not important to my analysis. 
+Alternatively, words like "Store", "Game", and "Presale" led me to search these specific topics which was informative, particularly with an eye towards investment.
+
+```{r message=FALSE, echo=FALSE, warning=FALSE}
+
+# install.packages("wordcloud")
+
+library(wordcloud)
+
+pal = brewer.pal(5,"Accent") 
+wordcloud(d_all$word, d_all$freq, min.freq=d_all$freq[30],colors=pal, scale = c(5, 1))
+
+```
+
+What I found was a general opinion that the "Game" refers to the rude and arrogant service at Hermes stores as well as the PreSpend concept. Strangly, the rudeness and arrogance is alluring to some buyers. This indicates that part of the "value" of a bag is the experience and that part of the value may not be present in an auction/resale market, thus limiting investment opportunities. PreSpend refers to the fact that before someone is eligible to buy a Hermes bag, they must spend a certain amount on other Hermes items before they are "allowed" to buy a Hermes bag. I can see this having two effects on bag value, one positive, the other negative. First, people who are turned off by rudeness and the PreSpend requirement will be less likely to buy and thus these behviors/policies will reduce demand, thus reducing value. Alternatively, those who want to avoid PreSpend requirement and the rudeness may very well turn to auctions that do not have such requirements and thus the resale auction market may be robust. These factors will contribute to my overall invetsment recommendation below.
+
+
+## Computational Text Analysis of Hermes Annual Reports
+
+Here, I examine Hermes annual reports from 2016 - 2024 using sentimentality analysis on each reports individually to examine trends in their prospects. The word cloud below is from the 2016 annual report but it is indicative of the reports for 2017-2024 and they are not presented. 
+
+```{r 2016 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+
+# initiate yearly sentiment column 
+sentiment_column <- c(0,0,0,0,0,0,0,0,0)
+#install.packages("SnowballC")
+#install.packages("pdftools")
+#install.packages("koRpus")
+#install.packages("koRpus.lang.en")
+library(tm)
+library(koRpus)
+library(koRpus.lang.en)
+library(pdftools)
+
+# Specify the path to your PDF file
+pdf_file_2016 <- "hermes_2016_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2016 <- pdf_text(pdf_file_2016)
+
+data_2016_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2016)
+
+data_2016_corpus <- Corpus(DataframeSource(data_2016_df))
+
+# all lowercase
+clean.data_2016 <-  tm_map(data_2016_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2016 <-  tm_map(clean.data_2016,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2016 <-  tm_map(clean.data_2016, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2016 <-  tm_map(clean.data_2016, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2016 <-  tm_map(clean.data_2016,removeWords,stopwords('SMART'))
+
+data_2016_text <-  clean.data_2016[[1]][1]
+tagged_2016.text <- koRpus::tokenize(as.character(data_2016_text),format='obj',lang='en')
+#tagged_2016.text
+
+#readability(tagged_2016.text, hyphen=NULL,index="FORCAST")
+
+
+ 
+# remove stop words
+freq.documents_2016 <-  tm_map(clean.data_2016, removeWords, stopwords('SMART'))
+
+tdm_2016 <-  TermDocumentMatrix(freq.documents_2016, control = list(minWordLength=2))
+m_2016 <-  as.matrix(tdm_2016)
+v_2016 <- sort(rowSums(m_2016), decreasing=TRUE)
+
+# display the 9 most frequent words
+#v_2016[1:9]
+
+library(sentimentr)
+library(syuzhet)
+
+docs.cleaned_2016 = get("content", clean.data_2016)
+filtered_array_2016 <- docs.cleaned_2016[grep(keyword, docs.cleaned_2016)]
+
+table_2016 <- sentiment(filtered_array_2016, n.before=0, n.after=0, amplifier.weight=0)
+senti_2016 = mean(table_2016$sentiment)
+#print(senti_2016)
+
+sentiment_column[1] <- senti_2016 
+
+ 
+
+stem.data_2016 <-  tm_map(clean.data_2016,stemDocument, language = "english")
+
+data_2016tdm <-  TermDocumentMatrix(stem.data_2016,control = list(minWordLength=3))
+#dim(data_2016tdm)
+
+data_2016.tdm.stem <- stemCompletion(rownames(data_2016tdm), dictionary=clean.data_2016, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2016tdm) <- as.vector(data_2016.tdm.stem)
+# rownames(data_2016tdm)[1:20]
+
+# findFreqTerms(data_2016tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2016matrix <-  as.matrix(data_2016tdm)
+# sort on frequency of terms to get frequencies of words
+data_2016words <- sort(rowSums(data_2016matrix), decreasing=TRUE)
+# display the twenty most frequent words
+#data_2016words[1:20]
+
+library(wordcloud)
+# get the names corresponding to the words
+names <- names(data_2016words)
+# create a data frame for plotting
+d_2016 <- data.frame(word=names, freq=data_2016words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+
+wordcloud(d_2016$word, d_2016$freq, min.freq=d_2016$freq[12],colors=pal)
+```
+
+In general, the annual reports were rather bland and as might be expected tended to read on the favorable side. Still, I conducted sentimentality analysis on each year and did find a surprising ebb and flow to the positive ratings. Again indicating a certain volatility associated with the Hermes organization. They are presented in Figure 5. 
+
+```{r 2017 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2017 <- "hermes_2017_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2017 <- pdf_text(pdf_file_2017)
+
+data_2017_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2017)
+
+data_2017_corpus <- Corpus(DataframeSource(data_2017_df))
+
+# all lowercase
+clean.data_2017 <-  tm_map(data_2017_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2017 <-  tm_map(clean.data_2017,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2017 <-  tm_map(clean.data_2017, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2017 <-  tm_map(clean.data_2017, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2017 <-  tm_map(clean.data_2017,removeWords,stopwords('SMART'))
+
+data_2017_text <-  clean.data_2017[[1]][1]
+tagged_2017.text <- koRpus::tokenize(as.character(data_2017_text),format='obj',lang='en')
+#tagged_2017.text
+
+#readability(tagged_2017.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2017 <-  tm_map(clean.data_2017, removeWords, stopwords('SMART'))
+
+tdm_2017 <-  TermDocumentMatrix(freq.documents_2017, control = list(minWordLength=2))
+m_2017 <-  as.matrix(tdm_2017)
+v_2017 <- sort(rowSums(m_2017), decreasing=TRUE)
+
+# display the 9 most frequent words
+#v_2017[1:9]
+
+docs.cleaned_2017 = get("content", clean.data_2017)
+filtered_array_2017 <- docs.cleaned_2017[grep(keyword, docs.cleaned_2017)]
+
+table_2017 <- sentiment(filtered_array_2017, n.before=0, n.after=0, amplifier.weight=0)
+senti_2017 = mean(table_2017$sentiment)
+#print(senti_2017)
+
+sentiment_column[2] <- senti_2017 
+
+ 
+
+
+
+stem.data_2017 <-  tm_map(clean.data_2017,stemDocument, language = "english")
+
+data_2017tdm <-  TermDocumentMatrix(stem.data_2017,control = list(minWordLength=3))
+#dim(data_2017tdm)
+
+data_2017.tdm.stem <- stemCompletion(rownames(data_2017tdm), dictionary=clean.data_2017, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2017tdm) <- as.vector(data_2017.tdm.stem)
+#rownames(data_2017tdm)[1:20]
+
+#findFreqTerms(data_2017tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2017matrix <-  as.matrix(data_2017tdm)
+# sort on frequency of terms to get frequencies of words
+data_2017words <- sort(rowSums(data_2017matrix), decreasing=TRUE)
+# display the twenty most frequent words
+#data_2017words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2017words)
+# create a data frame for plotting
+d_2017 <- data.frame(word=names, freq=data_2017words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+# wordcloud(d_2017$word, d_2017$freq, min.freq=d_2017$freq[12],colors=pal)
+```
+
+```{r 2018 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Specify the path to your PDF file
+pdf_file_2018 <- "hermes_2018_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2018 <- pdf_text(pdf_file_2018)
+
+data_2018_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2018)
+
+data_2018_corpus <- Corpus(DataframeSource(data_2018_df))
+
+# all lowercase
+clean.data_2018 <-  tm_map(data_2018_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2018 <-  tm_map(clean.data_2018,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2018 <-  tm_map(clean.data_2018, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2018 <-  tm_map(clean.data_2018, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2018 <-  tm_map(clean.data_2018,removeWords,stopwords('SMART'))
+
+data_2018_text <-  clean.data_2018[[1]][1]
+tagged_2018.text <- koRpus::tokenize(as.character(data_2018_text),format='obj',lang='en')
+# tagged_2018.text
+
+# readability(tagged_2018.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2018 <-  tm_map(clean.data_2018, removeWords, stopwords('SMART'))
+
+tdm_2018 <-  TermDocumentMatrix(freq.documents_2018, control = list(minWordLength=2))
+m_2018 <-  as.matrix(tdm_2018)
+v_2018 <- sort(rowSums(m_2018), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2018[1:9]
+
+docs.cleaned_2018 = get("content", clean.data_2018)
+filtered_array_2018 <- docs.cleaned_2018[grep(keyword, docs.cleaned_2018)]
+
+table_2018 <- sentiment(filtered_array_2018, n.before=0, n.after=0, amplifier.weight=0)
+senti_2018 = mean(table_2018$sentiment)
+# print(senti_2018)
+
+sentiment_column[3] <- senti_2018 
+
+ 
+
+stem.data_2018 <-  tm_map(clean.data_2018,stemDocument, language = "english")
+
+data_2018tdm <-  TermDocumentMatrix(stem.data_2018,control = list(minWordLength=3))
+# dim(data_2018tdm)
+
+data_2018.tdm.stem <- stemCompletion(rownames(data_2018tdm), dictionary=clean.data_2018, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2018tdm) <- as.vector(data_2018.tdm.stem)
+# rownames(data_2018tdm)[1:20]
+
+#findFreqTerms(data_2018tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2018matrix <-  as.matrix(data_2018tdm)
+# sort on frequency of terms to get frequencies of words
+data_2018words <- sort(rowSums(data_2018matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2018words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2018words)
+# create a data frame for plotting
+d_2018 <- data.frame(word=names, freq=data_2018words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+# wordcloud(d_2018$word, d_2018$freq, min.freq=d_2018$freq[12],colors=pal)
+```
+
+```{r 2019 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2019 <- "hermes_2019_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2019 <- pdf_text(pdf_file_2019)
+
+data_2019_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2019)
+
+data_2019_corpus <- Corpus(DataframeSource(data_2019_df))
+
+# all lowercase
+clean.data_2019 <-  tm_map(data_2019_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2019 <-  tm_map(clean.data_2019,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2019 <-  tm_map(clean.data_2019, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2019 <-  tm_map(clean.data_2019, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2019 <-  tm_map(clean.data_2019,removeWords,stopwords('SMART'))
+
+data_2019_text <-  clean.data_2019[[1]][1]
+tagged_2019.text <- koRpus::tokenize(as.character(data_2019_text),format='obj',lang='en')
+# tagged_2019.text
+
+# readability(tagged_2019.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2019 <-  tm_map(clean.data_2019, removeWords, stopwords('SMART'))
+
+tdm_2019 <-  TermDocumentMatrix(freq.documents_2019, control = list(minWordLength=2))
+m_2019 <-  as.matrix(tdm_2019)
+v_2019 <- sort(rowSums(m_2019), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2019[1:9]
+
+docs.cleaned_2019 = get("content", clean.data_2019)
+filtered_array_2019 <- docs.cleaned_2019[grep(keyword, docs.cleaned_2019)]
+
+table_2019 <- sentiment(filtered_array_2019, n.before=0, n.after=0, amplifier.weight=0)
+senti_2019 = mean(table_2019$sentiment)
+# print(senti_2019)
+
+sentiment_column[4] <- senti_2019 
+
+ 
+
+stem.data_2019 <-  tm_map(clean.data_2019,stemDocument, language = "english")
+
+data_2019tdm <-  TermDocumentMatrix(stem.data_2019,control = list(minWordLength=3))
+# dim(data_2019tdm)
+
+data_2019.tdm.stem <- stemCompletion(rownames(data_2019tdm), dictionary=clean.data_2019, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2019tdm) <- as.vector(data_2019.tdm.stem)
+# rownames(data_2019tdm)[1:20]
+
+# findFreqTerms(data_2019tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2019matrix <-  as.matrix(data_2019tdm)
+# sort on frequency of terms to get frequencies of words
+data_2019words <- sort(rowSums(data_2019matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2019words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2019words)
+# create a data frame for plotting
+d_2019 <- data.frame(word=names, freq=data_2019words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+# wordcloud(d_2019$word, d_2019$freq, min.freq=d_2019$freq[12],colors=pal)
+```
+
+```{r 2020 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+#install.packages("SnowballC")
+#install.packages("pdftools")
+#install.packages("koRpus")
+#install.packages("koRpus.lang.en")
+library(tm)
+library(koRpus)
+library(koRpus.lang.en)
+library(pdftools)
+
+# Specify the path to your PDF file
+pdf_file_2020 <- "hermes_2020_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2020 <- pdf_text(pdf_file_2020)
+
+data_2020_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2020)
+
+data_2020_corpus <- Corpus(DataframeSource(data_2020_df))
+
+# all lowercase
+clean.data_2020 <-  tm_map(data_2020_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2020 <-  tm_map(clean.data_2020,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2020 <-  tm_map(clean.data_2020, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2020 <-  tm_map(clean.data_2020, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2020 <-  tm_map(clean.data_2020,removeWords,stopwords('SMART'))
+
+data_2020_text <-  clean.data_2020[[1]][1]
+tagged_2020.text <- koRpus::tokenize(as.character(data_2020_text),format='obj',lang='en')
+# tagged_2020.text
+
+# readability(tagged_2020.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2020 <-  tm_map(clean.data_2020, removeWords, stopwords('SMART'))
+
+tdm_2020 <-  TermDocumentMatrix(freq.documents_2020, control = list(minWordLength=2))
+m_2020 <-  as.matrix(tdm_2020)
+v_2020 <- sort(rowSums(m_2020), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2020[1:9]
+
+docs.cleaned_2020 = get("content", clean.data_2020)
+filtered_array_2020 <- docs.cleaned_2020[grep(keyword, docs.cleaned_2020)]
+
+table_2020 <- sentiment(filtered_array_2020, n.before=0, n.after=0, amplifier.weight=0)
+senti_2020 = mean(table_2020$sentiment)
+# print(senti_2020)
+
+sentiment_column[5] <- senti_2020
+
+ 
+
+stem.data_2020 <-  tm_map(clean.data_2020,stemDocument, language = "english")
+
+data_2020tdm <-  TermDocumentMatrix(stem.data_2020,control = list(minWordLength=3))
+# dim(data_2020tdm)
+
+data_2020.tdm.stem <- stemCompletion(rownames(data_2020tdm), dictionary=clean.data_2020, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2020tdm) <- as.vector(data_2020.tdm.stem)
+# rownames(data_2020tdm)[1:20]
+
+# findFreqTerms(data_2020tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2020matrix <-  as.matrix(data_2020tdm)
+# sort on frequency of terms to get frequencies of words
+data_2020words <- sort(rowSums(data_2020matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2020words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2020words)
+# create a data frame for plotting
+d_2020 <- data.frame(word=names, freq=data_2020words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+#wordcloud(d_2020$word, d_2020$freq, min.freq=d_2020$freq[12],colors=pal)
+```
+
+```{r 2021 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2021 <- "hermes_2021_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2021 <- pdf_text(pdf_file_2021)
+
+data_2021_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2021)
+
+data_2021_corpus <- Corpus(DataframeSource(data_2021_df))
+
+# all lowercase
+clean.data_2021 <-  tm_map(data_2021_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2021 <-  tm_map(clean.data_2021,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2021 <-  tm_map(clean.data_2021, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2021 <-  tm_map(clean.data_2021, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2021 <-  tm_map(clean.data_2021,removeWords,stopwords('SMART'))
+
+data_2021_text <-  clean.data_2021[[1]][1]
+tagged_2021.text <- koRpus::tokenize(as.character(data_2021_text),format='obj',lang='en')
+# tagged_2021.text
+
+# readability(tagged_2021.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2021 <-  tm_map(clean.data_2021, removeWords, stopwords('SMART'))
+
+tdm_2021 <-  TermDocumentMatrix(freq.documents_2021, control = list(minWordLength=2))
+m_2021 <-  as.matrix(tdm_2021)
+v_2021 <- sort(rowSums(m_2021), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2021[1:9]
+
+docs.cleaned_2021 = get("content", clean.data_2021)
+filtered_array_2021 <- docs.cleaned_2021[grep(keyword, docs.cleaned_2021)]
+
+table_2021 <- sentiment(filtered_array_2021, n.before=0, n.after=0, amplifier.weight=0)
+senti_2021 = mean(table_2021$sentiment)
+# print(senti_2021)
+
+sentiment_column[6] <- senti_2021
+
+ 
+
+stem.data_2021 <-  tm_map(clean.data_2021,stemDocument, language = "english")
+
+data_2021tdm <-  TermDocumentMatrix(stem.data_2021,control = list(minWordLength=3))
+# dim(data_2021tdm)
+
+data_2021.tdm.stem <- stemCompletion(rownames(data_2021tdm), dictionary=clean.data_2021, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2021tdm) <- as.vector(data_2021.tdm.stem)
+# rownames(data_2021tdm)[1:20]
+
+# findFreqTerms(data_2021tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2021matrix <-  as.matrix(data_2021tdm)
+# sort on frequency of terms to get frequencies of words
+data_2021words <- sort(rowSums(data_2021matrix), decreasing=TRUE)
+# display the twenty most frequent words
+#data_2021words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2021words)
+# create a data frame for plotting
+d_2021 <- data.frame(word=names, freq=data_2021words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+#wordcloud(d_2021$word, d_2021$freq, min.freq=d_2021$freq[12],colors=pal)
+```
+
+```{r 2022 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2022 <- "hermes_2022_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2022 <- pdf_text(pdf_file_2022)
+
+data_2022_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2022)
+
+data_2022_corpus <- Corpus(DataframeSource(data_2022_df))
+
+# all lowercase
+clean.data_2022 <-  tm_map(data_2022_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2022 <-  tm_map(clean.data_2022,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2022 <-  tm_map(clean.data_2022, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2022 <-  tm_map(clean.data_2022, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2022 <-  tm_map(clean.data_2022,removeWords,stopwords('SMART'))
+
+data_2022_text <-  clean.data_2022[[1]][1]
+tagged_2022.text <- koRpus::tokenize(as.character(data_2022_text),format='obj',lang='en')
+# tagged_2022.text
+
+# readability(tagged_2022.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2022 <-  tm_map(clean.data_2022, removeWords, stopwords('SMART'))
+
+tdm_2022 <-  TermDocumentMatrix(freq.documents_2022, control = list(minWordLength=2))
+m_2022 <-  as.matrix(tdm_2022)
+v_2022 <- sort(rowSums(m_2022), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2022[1:9]
+
+docs.cleaned_2022 = get("content", clean.data_2022)
+filtered_array_2022 <- docs.cleaned_2022[grep(keyword, docs.cleaned_2022)]
+
+table_2022 <- sentiment(filtered_array_2022, n.before=0, n.after=0, amplifier.weight=0)
+senti_2022 = mean(table_2022$sentiment)
+# print(senti_2022)
+
+sentiment_column[7] <- senti_2022
+
+ 
+
+stem.data_2022 <-  tm_map(clean.data_2022,stemDocument, language = "english")
+
+data_2022tdm <-  TermDocumentMatrix(stem.data_2022,control = list(minWordLength=3))
+# dim(data_2022tdm)
+
+data_2022.tdm.stem <- stemCompletion(rownames(data_2022tdm), dictionary=clean.data_2022, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2022tdm) <- as.vector(data_2022.tdm.stem)
+# rownames(data_2022tdm)[1:20]
+
+# findFreqTerms(data_2022tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2022matrix <-  as.matrix(data_2022tdm)
+# sort on frequency of terms to get frequencies of words
+data_2022words <- sort(rowSums(data_2022matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2022words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2022words)
+# create a data frame for plotting
+d_2022 <- data.frame(word=names, freq=data_2022words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+#wordcloud(d_2022$word, d_2022$freq, min.freq=d_2022$freq[12],colors=pal)
+```
+
+```{r 2023 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2023 <- "hermes_2023_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2023 <- pdf_text(pdf_file_2023)
+
+data_2023_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2023)
+
+data_2023_corpus <- Corpus(DataframeSource(data_2023_df))
+
+# all lowercase
+clean.data_2023 <-  tm_map(data_2023_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2023 <-  tm_map(clean.data_2023,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2023 <-  tm_map(clean.data_2023, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2023 <-  tm_map(clean.data_2023, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2023 <-  tm_map(clean.data_2023,removeWords,stopwords('SMART'))
+
+data_2023_text <-  clean.data_2023[[1]][1]
+tagged_2023.text <- koRpus::tokenize(as.character(data_2023_text),format='obj',lang='en')
+# tagged_2023.text
+
+# readability(tagged_2023.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2023 <-  tm_map(clean.data_2023, removeWords, stopwords('SMART'))
+
+tdm_2023 <-  TermDocumentMatrix(freq.documents_2023, control = list(minWordLength=2))
+m_2023 <-  as.matrix(tdm_2023)
+v_2023 <- sort(rowSums(m_2023), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2023[1:9]
+
+docs.cleaned_2023 = get("content", clean.data_2023)
+filtered_array_2023 <- docs.cleaned_2023[grep(keyword, docs.cleaned_2023)]
+
+table_2023 <- sentiment(filtered_array_2023, n.before=0, n.after=0, amplifier.weight=0)
+senti_2023 = mean(table_2023$sentiment)
+# print(senti_2023)
+
+sentiment_column[8] <- senti_2023
+
+ 
+
+stem.data_2023 <-  tm_map(clean.data_2023,stemDocument, language = "english")
+
+data_2023tdm <-  TermDocumentMatrix(stem.data_2023,control = list(minWordLength=3))
+# dim(data_2023tdm)
+
+data_2023.tdm.stem <- stemCompletion(rownames(data_2023tdm), dictionary=clean.data_2023, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2023tdm) <- as.vector(data_2023.tdm.stem)
+# rownames(data_2023tdm)[1:20]
+
+# findFreqTerms(data_2023tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2023matrix <-  as.matrix(data_2023tdm)
+# sort on frequency of terms to get frequencies of words
+data_2023words <- sort(rowSums(data_2023matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2023words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2023words)
+# create a data frame for plotting
+d_2023 <- data.frame(word=names, freq=data_2023words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+#wordcloud(d_2023$word, d_2023$freq, min.freq=d_2023$freq[12],colors=pal)
+```
+
+```{r 2024 Annual Report Analysis, echo=FALSE, message=FALSE, warning=FALSE}
+# Specify the path to your PDF file
+pdf_file_2024 <- "hermes_2024_report.pdf"
+
+# Extract text from the PDF
+pdf_text_data_2024 <- pdf_text(pdf_file_2024)
+
+data_2024_df <- data.frame("doc_id" = 1, "text" = pdf_text_data_2024)
+
+data_2024_corpus <- Corpus(DataframeSource(data_2024_df))
+
+# all lowercase
+clean.data_2024 <-  tm_map(data_2024_corpus, content_transformer(tolower))
+# remove punctuation
+clean.data_2024 <-  tm_map(clean.data_2024,content_transformer(removePunctuation))
+# remove numbers
+clean.data_2024 <-  tm_map(clean.data_2024, content_transformer(removeNumbers))
+# strip extra white space
+clean.data_2024 <-  tm_map(clean.data_2024, content_transformer(stripWhitespace))
+# remove stop words
+clean.data_2024 <-  tm_map(clean.data_2024,removeWords,stopwords('SMART'))
+
+data_2024_text <-  clean.data_2024[[1]][1]
+tagged_2024.text <- koRpus::tokenize(as.character(data_2024_text),format='obj',lang='en')
+# tagged_2024.text
+
+# readability(tagged_2024.text, hyphen=NULL,index="FORCAST")
+
+ 
+# remove stop words
+freq.documents_2024 <-  tm_map(clean.data_2024, removeWords, stopwords('SMART'))
+
+tdm_2024 <-  TermDocumentMatrix(freq.documents_2024, control = list(minWordLength=2))
+m_2024 <-  as.matrix(tdm_2024)
+v_2024 <- sort(rowSums(m_2024), decreasing=TRUE)
+
+# display the 9 most frequent words
+# v_2024[1:9]
+
+docs.cleaned_2024 = get("content", clean.data_2024)
+filtered_array_2024 <- docs.cleaned_2024[grep(keyword, docs.cleaned_2024)]
+
+table_2024 <- sentiment(filtered_array_2024, n.before=0, n.after=0, amplifier.weight=0)
+senti_2024 = mean(table_2024$sentiment)
+#print(senti_2024)
+
+sentiment_column[9] <- senti_2024
+
+ 
+
+stem.data_2024 <-  tm_map(clean.data_2024,stemDocument, language = "english")
+
+data_2024tdm <-  TermDocumentMatrix(stem.data_2024,control = list(minWordLength=3))
+# dim(data_2024tdm)
+
+data_2024.tdm.stem <- stemCompletion(rownames(data_2024tdm), dictionary=clean.data_2024, type=c("prevalent"))
+
+# change to stem completed row names
+rownames(data_2024tdm) <- as.vector(data_2024.tdm.stem)
+# rownames(data_2024tdm)[1:20]
+ 
+# findFreqTerms(data_2024tdm, lowfreq = 60, highfreq = Inf)
+
+# convert term document matrix to a regular matrix to get frequencies of words
+data_2024matrix <-  as.matrix(data_2024tdm)
+# sort on frequency of terms to get frequencies of words
+data_2024words <- sort(rowSums(data_2024matrix), decreasing=TRUE)
+# display the twenty most frequent words
+# data_2024words[1:20]
+
+# get the names corresponding to the words
+names <- names(data_2024words)
+# create a data frame for plotting
+d_2024 <- data.frame(word=names, freq=data_2024words)
+# select the color palette
+pal = brewer.pal(5,"Accent")
+# generate the cloud based on the 12 most frequent words
+#wordcloud(d_2024$word, d_2024$freq, min.freq=d_2024$freq[12],colors=pal)
+
+```
+
+
+```{r Yearly Senti Table, echo=FALSE, message=FALSE, warning=FALSE}
+year_column <- c("2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024")
+#space_column <- c(NA,"     ","     ","     ","     ","     ","     ","     ","     ")
+
+# Load required libraries
+library(knitr)
+library(kableExtra)
+
+# Create the data frame
+table_df <- data.frame("Year" = year_column, "Sentiment" = sentiment_column, check.names = FALSE)
+
+# Print the styled table without row names
+#kable(table_df, row.names = FALSE, caption = "Table 1: Annual Report Sentiment Score") %>%
+#  kable_styling(
+#    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+#    full_width = FALSE,
+#    position = "center"
+#  ) %>%
+#  column_spec(1, bold = TRUE)  # Make the "Year" column bold
+
+
+ggplot(data = table_df, aes(x = Year, y = Sentiment)) +
+  geom_point(color = "blue", size = 2) +  # Points with blue color and size
+  labs(
+    x = "Year",
+    y = "Sentiment Score",
+    title = "Figure 5 : Annual Report Sentiment Scores Over Time"
+  ) +
+  theme_minimal()
+
+```
+
+## Summary
+
+In conclusion, not everything with a high price tag is a good investment. Hermes bags seem particularly aimed towards high end buyers who enjoy the purchasing process but are not a wise investment. Auction prices have become volatile and higher prices are likely more a result of the winner's curse than any real investment gains. This combined with a negative time trend from the auction price regression leads me to advise Mr. Drizzy to pursue more traditional investments and liquidate his current holdings of Hermes bags. Given that he only owns six handbags right now, I believe that he could leverage his celebrity stature to fetch a premium at auction without saturating the market.
+
+

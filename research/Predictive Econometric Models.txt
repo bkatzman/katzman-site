@@ -1,0 +1,183 @@
+---
+title: "Project 1"
+author: "Spencer Katzman"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+data_train <- read.csv("house_price_train.csv")
+data_test  <- read.csv("house_price_test.csv")
+```
+
+# Model Descriptions
+
+I estimated six different regression models. I began with a uni-variate regression of SalePrice on GrLivArea. GrLiv area measures and I hypothesized that larger house, on average, sell for more than smaller houses. Next, I ran a uni-variate regression of Sales Price on BedroomAbvGr which measures ... The idea is that houses with more bedrooms sell for more, on average, than houses with fewer bedrooms.
+
+I ran a bi-variate regression in the third model where the regressors were and GrLivArea and BedroomAbvGr. The fourth model added FullBath to the third regression. The reasoning behind this is that in many real estate ads, you see the number of bedrooms and bathrooms stated prominently, indicating that agents feel they are important determinants of a house's value. The fifth model added information about the Neighborhood in which the house was located because ... This was achieved by using the as.factor function in R to create ?? dichotomous variables representing the ?? different neighborhoods with the ?? neighborhood as the baseline. Finally, the sixth regression addsinteractions terms between the neighborhood dichotomous variables and GrLivArea. 
+
+```{r} 
+formla1 <- SalePrice ~ GrLivArea
+formla2 <- SalePrice ~ BedroomAbvGr
+formla3 <- SalePrice ~ GrLivArea + BedroomAbvGr
+formla4 <- SalePrice ~ GrLivArea + BedroomAbvGr + FullBath
+formla5 <- SalePrice ~ GrLivArea + BedroomAbvGr + FullBath + as.factor(Neighborhood)
+#formla6 <- SalePrice ~ (as.factor(Neighborhood) + LotArea + GrLivArea + YearBuilt)^2
+formla6 <- SalePrice ~ GrLivArea + BedroomAbvGr + FullBath + as.factor(Neighborhood) + GrLivArea*as.factor(Neighborhood)  
+mod1 <- lm(formla1, data=data_train)
+mod2 <- lm(formla2, data=data_train)
+mod3 <- lm(formla3, data=data_train)
+mod4 <- lm(formla4, data=data_train)
+mod5 <- lm(formla5, data=data_train)
+mod6 <- lm(formla6, data=data_train)
+
+model_list <- c(formla1,formla2,formla3,formla4,formla5,formla6)
+```
+
+In summary, the six regression models are:
+```{r}
+for (item in model_list) {
+    print(item)
+}
+```
+
+
+# Model Selection
+
+```{r}
+mod_sel <- function(formla) {
+  mod <- lm(formla, data=data_train)
+  r.squared <- summary(mod)$r.squared
+  adj.r.squared <- summary(mod)$adj.r.squared
+  
+  n <- nrow(data_train)
+  uhat <- resid(mod)
+  ssr <- sum(uhat^2)
+  k <- length(coef(mod))
+  aic <- 2*k + n*log(ssr)
+  bic <- k*log(n) + n*log(ssr)
+
+  result <- tidyr::tibble(r.squared, adj.r.squared, aic, bic)
+  return(result)
+}
+
+res1 <- mod_sel(formla1)
+res2 <- mod_sel(formla2)
+res3 <- mod_sel(formla3)
+res4 <- mod_sel(formla4)
+res5 <- mod_sel(formla5)
+res6 <- mod_sel(formla6)
+
+round(rbind.data.frame(res1, res2, res3, res4, res5, res6),6)
+
+k <- 10
+n <- nrow(data_train)
+data_train$fold <- sample(1:k, size=n, replace=TRUE)
+data_train$id <- 1:n
+
+cv_mod_sel <- function(formla) {
+  u.squared <- rep(NA, n)
+  for (i in 1:k) {
+    this.train <- subset(data_train, fold != i)
+    this.test <- subset(data_train, fold == i)
+    this.id <- this.test$id
+    cv_reg <- lm(formla,
+              data=this.train)
+    pred <- predict(cv_reg, newdata=this.test)
+    u <- this.test$SalePrice - pred
+    u.squared[this.id] <- u^2
+  }
+  cv <- sqrt(mean(u.squared))
+  return(cv)
+}
+
+cv_res1 <- cv_mod_sel(formla1)
+cv_res2 <- cv_mod_sel(formla2)
+cv_res3 <- cv_mod_sel(formla3)
+cv_res4 <- cv_mod_sel(formla4)
+cv_res5 <- cv_mod_sel(formla5)
+cv_res6 <- cv_mod_sel(formla6)
+
+res1 <- cbind.data.frame(res1, cv=cv_res1)
+res2 <- cbind.data.frame(res2, cv=cv_res2)
+res3 <- cbind.data.frame(res3, cv=cv_res3)
+res4 <- cbind.data.frame(res4, cv=cv_res4)
+res5 <- cbind.data.frame(res5, cv=cv_res5)
+res6 <- cbind.data.frame(res6, cv=cv_res6)
+
+round(rbind.data.frame(res1, res2, res3, res4, res5, res6),6)
+```
+
+
+
+# In Sample Model Comparison 
+
+# Lasso and Ridge Regressions
+
+
+
+# Test Data
+
+```{r}
+library(glmnet)
+library(glmnetUtils)
+
+lasso_model <- glmnet(formla6, data=data_train, alpha = 1)
+print(lasso_model)
+ridge_model <- glmnet(formla6, data=data_train, alpha = 0)
+print(ridge_model)
+
+
+lasso_res <- cv.glmnet(formla6, data=data_train, alpha=1)
+ridge_res <- cv.glmnet(formla6, data=data_train, alpha=0)
+
+
+
+# best_lambda <- cv_lasso$lambda.min
+lasso_coefficients <- coef(lasso_res, s = "lambda.min")
+print(lasso_coefficients)
+ridge_coefficients <- coef(ridge_res, s = "lambda.min")
+print(ridge_coefficients)
+
+
+# out of sample predictions
+
+#load("data/data_test.RData")
+
+# compute prediction errors with test data
+u1 <- data_test$SalePrice - predict(mod1, newdata=data_test)
+u2 <- data_test$SalePrice - predict(mod2, newdata=data_test)
+u3 <- data_test$SalePrice - predict(mod3, newdata=data_test)
+u4 <- data_test$SalePrice - predict(mod4, newdata=data_test)
+u5 <- data_test$SalePrice - predict(mod5, newdata=data_test)
+u6 <- data_test$SalePrice - predict(mod6, newdata=data_test)
+u_lasso <- data_test$SalePrice - predict(lasso_res, newdata=data_test)
+u_ridge <- data_test$SalePrice - predict(ridge_res, newdata=data_test)
+
+# compute root mean squared prediction errors
+rmspe1 <- sqrt(mean(u1^2))
+rmspe2 <- sqrt(mean(u2^2))
+rmspe3 <- sqrt(mean(u3^2))
+rmspe4 <- sqrt(mean(u4^2))
+rmspe5 <- sqrt(mean(u5^2))
+rmspe6 <- sqrt(mean(u6^2))
+rmspe_lasso <- sqrt(mean(u_lasso^2))
+rmspe_ridge <- sqrt(mean(u_ridge^2))
+
+# report results
+rmspe <- data.frame(mod1=rmspe1, mod2=rmspe2, mod3=rmspe3, mod4=rmspe4, mod5=rmspe5, mod6=rmspe6, lasso=rmspe_lasso, ridge=rmspe_ridge)
+round(rmspe,6)
+
+
+# predictions <- predict(cv_lasso, newx = X, s = "lambda.min")
+# head(predictions)
+# coef(cv_lasso, s = "lambda.min")
+```
+
+
+is the predicted sale price coming from each model. Then, rank each model according to how well it predicts house selling prices in the test data according to the above criteria.
+
+Discuss your results. In particular, discuss how well your rankings from the first step compared to rankings for out of sample predictions.
+
+# Out of sample Model Comparison
+

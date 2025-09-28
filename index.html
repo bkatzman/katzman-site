@@ -22,21 +22,25 @@
     }
 
     .header-img {
-      width: clamp(90px, 10vw, 200px); /* same size as your 'fantastic' version */
+      width: clamp(90px, 10vw, 200px); /* your approved image size */
       height: auto;
       flex-shrink: 0;
-      margin: 0 20px 10px 0 !important; /* force left alignment; override any auto-centering */
+      margin-right: 20px;
     }
 
     .content {
       flex: 1;
       max-width: 900px;
-      text-align: left;
+      text-align: left; /* enforce left justification inside content */
     }
 
-    .justified { text-align: justify; }
+    .justified {
+      text-align: justify;
+    }
 
-    section { margin-bottom: 28px; }
+    section {
+      margin-bottom: 28px;
+    }
 
     ul {
       padding-left: 1.25rem;
@@ -53,7 +57,9 @@
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .cta-link:hover { filter: brightness(0.95); }
+    .cta-link:hover {
+      filter: brightness(0.95);
+    }
   </style>
 </head>
 <body>

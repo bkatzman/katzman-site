@@ -17,12 +17,13 @@
     .layout {
       display: flex;
       align-items: flex-start;
+      justify-content: flex-start; /* force content to the left */
       padding: 20px;
       gap: 20px;
     }
 
     .header-img {
-      width: clamp(90px, 10vw, 200px); /* reduced to quarter size */
+      width: clamp(90px, 10vw, 200px);
       height: auto;
       flex-shrink: 0;
       margin-right: 20px;
@@ -31,7 +32,7 @@
     .content {
       flex: 1;
       max-width: 900px;
-      text-align: left; /* enforce left justification inside content */
+      text-align: left;
     }
 
     .justified {
@@ -64,7 +65,7 @@
 </head>
 <body>
   <div class="layout">
-    <img src="katzman.png?v=7" alt="Spencer Katzman" class="header-img">
+    <img src="katzman.png?v=9" alt="Spencer Katzman" class="header-img">
 
     <div class="content">
       <header>
@@ -112,4 +113,3 @@
   </div>
 </body>
 </html>
-

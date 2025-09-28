@@ -17,12 +17,14 @@
       display: flex;
       align-items: flex-start;
       padding: 20px;
+      flex-wrap: wrap; /* allows stacking on smaller screens */
     }
 
     .header-img {
-      width: 400px;   /* about 4× bigger than your original ~100px image */
+      width: clamp(300px, 45vw, 1000px); /* responsive scaling */
       height: auto;
       margin-right: 40px;
+      flex-shrink: 0;
     }
 
     .content {
@@ -94,10 +96,4 @@
 
         <section>
           <h2>Resume</h2>
-          <p><a class="cta-link" href="resume.pdf" target="_blank">Download my CV (PDF)</a></p>
-        </section>
-      </main>
-    </div>
-  </div>
-</body>
-</html>
+          <p><a class="cta-link" href="resume.pd

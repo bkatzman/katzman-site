@@ -53,7 +53,8 @@ ul {
   font-weight: 900;
   font-size: 1.35rem;
   text-decoration: none;
-  background: #ffea00;
+  background: #ff0000; /* red background */
+  color: #ffffff;      /* white text */
   padding: 12px 16px;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);

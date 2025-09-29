@@ -1,0 +1,406 @@
+---
+title: "Final Project - BUSN 3040"
+author: "Spencer Katzman"
+date: "2024-10-07"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+# install.packages("car")
+library(car)
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(readr)
+housing_prices1 <- read_csv("r1 housingprices.csv")
+# head(housing_prices1)
+# nrow(housing_prices1)
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+housing_prices2 <- housing_prices1 %>%
+mutate(Fin_Basement = ifelse(BsmtFinSF2 + BsmtFinSF2 > 0, 1, 0))
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+housing_prices3 <- housing_prices2 %>%
+    select(LotArea, BedroomAbvGr, OverallCond, GrLivArea, Fin_Basement, SalePrice)
+housing_prices3 <- rename(Lot_Size = LotArea, housing_prices3, Square_Footage = GrLivArea, Num_Bedrooms = BedroomAbvGr, Cond_Rating = OverallCond, Selling_Price = SalePrice)
+# head(housing_prices3)
+# summary(housing_prices3)
+# summary(housing_prices1$YrSold)
+theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+
+# Background & Descriptive Statistics
+
+## Context and Research Question
+
+The analysis found in this report relates to houses sold in various Iowa neighborhoods between 2006 and 2010. I will use the data provided to run a linear regression model. This model will allow me to predict the selling price of a house in Iowa based on various physical characteristics (e.g. square footage and whether it has a finished basement). After identifying the individual impacts of those characteristics on selling price, the results can be used in several useful ways. For example, the increase in value from adding living space or refinishing a basement could be calculated, thus making the decision to do so more informed. Or, a real estate agent could use the model results to better predict the selling price of a new listing by inputting the characteristics of the house into the model. 
+
+## Data and Variables - Descriptive Statistics
+
+My initial regression model leverages the 1,460 house sales captured in the data set and uses the selling price of a house as the dependent variable (later, a revised version of the model is offered where 89 outliers are removed). Of the 80 columns of data regarding house characteristics, I have selected the square footage of the house, the size of the lot on which the house is built, an overall condition rating, and the number of bedrooms as my first four independent variables. In addition, I used data on the size of the a house's finished basement to create a dichotomous, categorical variable that represents whether or not a house has a finished basement (this variable is assigned "1" if there is a finished basement and a "0" if there is not). It is included as a fifth independent variable. I included each of these independent variables because I expect that an increase in each, other things being equal, should cause a house to sell for a higher price. My model will allow me to test these hypotheses.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+# mean(housing_prices3$Selling_Price)
+# mean(housing_prices3$LotArea)
+# mean(housing_prices3$BedroomAbvGr)
+# mean(housing_prices3$OverallCond)
+# mean(housing_prices3$GrLivArea)
+# mean(housing_prices3$FinBasement)
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+# sd(housing_prices3$Selling_Price)
+# sd(housing_prices3$LotArea)
+# sd(housing_prices3$BedroomAbvGr)
+# sd(housing_prices3$OverallCond)
+# sd(housing_prices3$GrLivArea)
+# sd(housing_prices3$FinBasement)
+```
+
+A closer examination of the variables show a mean (standard deviation) for *Selling_Price* of $180,921.20 (79442.5). *Square_Footage* of livable area above grade is a quantitative continuous variable with mean (standard deviation) of 1515.464 (525.5). *Lot_Size* is quantitative continuous variable measured in square feet with mean (standard deviation) 10516.83 (9981.3). *Num_Bedrooms* is represented by a quantitative discrete variable with mean (standard deviation) 2.8664(0.815778). *Cond_Rating* is an ordinal qualitative discrete variable with mean (standard deviation) 5.5753 (1.112799). Finally, *Fin_Basement* is a qualitative variable with discrete values of 0 and 1, its mean (standard deviation) is 0.114 (0.3183856). This means that approximately 11.4% of the houses in the data have a finished basement.
+
+## Discriptive Visualizations
+
+The following subsections provide visual descriptions of the dependent and independent variables in isolation.
+
+### Sale Price
+
+The following graph shows a histogram for the *Selling_Price* in the data.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 1: Selling_Price Histogram") +
+  geom_histogram(mapping = aes(x = Selling_Price)) +
+  xlab("Selling_Price")
+```
+
+The histogram in Figure 1 shows that most observations are grouped around the mean, but that there are a number of houses that sold for quite a bit more. This suggests the possible presence of outliers. The box plot in Figure 2 confirms this and I will discuss these outliers later in this report.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+boxplot(housing_prices3$Selling_Price, main = "Figure 2: Selling_Price Box Plot")
+```
+
+### Square Footage
+
+Here is the histogram for the *Square_Footage* data.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 3: Square_Footage Histogram") +
+  geom_histogram(mapping = aes(x = Square_Footage)) +
+  xlab("Square_Footage")
+```
+
+Once again, a few observations in the histogram are further to the right than most of the others, again suggesting the possible existence of outliers. The box plot in Figure 4 confirms this. 
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+boxplot(housing_prices3$Square_Footage, main = "Figure 4: Square_Footage Box Plot")
+upper_whisker_size <- 1777 + 1.5*(1777 - 1130)
+prices_no_outliers <- filter(housing_prices3, Square_Footage < 2747.5)
+# boxplot(prices_no_outliers$Square_Footage, main = "Figure 4: Square_Footage (Outliers Removed) Box Plot")
+```
+
+\pagebreak
+
+### Lot Area
+
+Figure 5 is the histogram for the size of the lot on which the house is built.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 5: Lot_Size Histogram") +
+  geom_histogram(mapping = aes(x = Lot_Size)) +
+  xlab("Lot_Size")
+```
+
+As with *Square_Footage*, the histogram for *Lot_Size* suggests the presence of large outliers. Once again, I turn to a box plot (Figure 6) to examine this possibility.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+boxplot(housing_prices3$Lot_Size, main = "Figure 6: Lot_Size Box Plot")
+upper_whisker_lot <- 11602 + 1.5*(11602 - 7554)
+prices_no_outliers <- filter(prices_no_outliers, Lot_Size < upper_whisker_lot)
+# boxplot(prices_no_outliers$Lot_Size, main = "Figure 4: Lot_Size (Outliers Removed) Box Plot")
+```
+
+Indeed, the box plot verified our suspicion of large outliers for *Lot_Size*. 
+
+
+### Overall Condition
+
+Figure 7 below shows that *Cond_Ranking* is skewed to the right and that there are relatively few "poor" conditioned houses represented in the data set.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 7: Cond_Rating Histogram") +
+  geom_bar(mapping = aes(x = Cond_Rating)) +
+   xlab("Cond_Rating")
+
+```
+
+
+
+### Number of Bedrooms
+
+Figure 8 below shows that the majority of houses have two, three, of four bedrooms and that there is at least one house with eight bedrooms (this will be further investigated when I examine outliers).
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 8: Num_Bedrooms Histogram") +
+  geom_bar(mapping = aes(x = Num_Bedrooms)) +
+   xlab("Num_Bedrooms")
+```
+
+
+
+### Finished Basement
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 9: Fin_Basement Histogram") +
+  geom_bar(mapping = aes(x = Fin_Basement)) +
+   xlab("Unfinshed/Finished Basement")
+
+```
+
+Figure 9 shows that only about 10% of the houses in the data set have finished basements.
+
+### Possible Linear Correlation
+
+Here I examine possible linear correlation between some of my independent variables. Specifically, I am concerned that there may be a high level of linear correlation between the *Square_Footage* and *Num_Bedrooms* in a house because larger houses tend to have more bedrooms. I am also concerned with linear correlation between *Square_Footage* and *Lot_size* because large houses tend to be built on larger plots of land. Tables 1 and 2 present the covariance and correlation matrices for my independent variables.
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+covariance_data <- housing_prices3 %>%
+    select(Lot_Size, Num_Bedrooms, Cond_Rating, Square_Footage, Fin_Basement)
+```
+
+<center>
+**Table 1: Var/Cov Matrix for Independent Variables**
+</center>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+cor(covariance_data)
+```
+
+<center>
+**Table 2: Correlation Matrix for Independent Variables**
+</center>
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+cor(covariance_data)
+```
+
+Table 2 does show some linear correlation between square footage and the number of bedrooms, but it is only moderate (0.5213). More surprising, and promising, is the small degree of linear correlation between the other variables. Figure 8 presents a scatter plot of *Square_Footage* versus *Num_Bedrooms* to help visualize the degree of linear correlation. 
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 10: Square_Footage/Num_Bedrooms Scatter Plot") +
+  geom_point(mapping = aes(x = Square_Footage, y = Num_Bedrooms)) +
+  geom_smooth(mapping = aes(x = Square_Footage, y = Num_Bedrooms))
+
+```
+
+Figure 10 shows that there may be nonlinear correlation across these data. Still, it appears that there may be fairly strong linear correlation for smaller values of square footage, suggesting that removal of the outliers based on large house sizes (identified above), may allow this linear correlation to be uncovered. Later I will turn to the VIF measure to examine multicollinearity in my regression models.
+
+Although Table 2 only shows small linear correlation between *Square_Footage* and *Lot_Size* (0.2631). I investigated my intuition about this correlation using the scatter plot in Figure 11 below. 
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 11: Square_Footage/Lot_Size Scatter Plot") +
+  geom_point(mapping = aes(x = Square_Footage, y = Lot_Size)) +
+  geom_smooth(mapping = aes(x = Square_Footage, y = Lot_Size))
+
+```
+
+Figure 9 shows that there is small linear correlation between square footage and lot area for most house but that larger houses introduce a non-linearity to the smoothing line. this, once again, suggests the impact of outliers based on large house sizes and lot areas.
+
+
+## Hypotheses
+
+The main hypotheses concern how a house's selling price is affected by a change in an independent variable (holding other things equal). My five hypotheses are:
+
+1. A larger house, in terms of square footage of living space, sells for more than a house with less square footage of living space.
+2. A house built on a larger lot sells for more than a house built on a smaller lot.
+3. A house with more bedrooms sells for more than a house with fewer bedrooms.
+4. A house with a higher condition rating sells for more than a house with a lower condition rating.
+5. A house with a finished basement sells for more than a house without a finished basement.
+
+All of these hypotheses are based on the idea that an increase in the independent variable (*Square_Footage*, *Lot_Size*, *Cond_Rating*, *Num_Bedrooms*, and *Fin_Basement*) add value to the house and thus should result in it selling for a higher price. In the next section, I present the results from a linear regression that allows me to test these hypotheses.
+
+# Model Results
+
+## Predictive Visualizations
+
+This section provides scatter plots that show the individual relations between *Selling_Price* (the dependent variable) and the various independent variables.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 12: Selling_Price vs. Square_Footage Scatter Plot") +
+  geom_point(mapping = aes(x = Square_Footage, y = Selling_Price)) +
+  geom_smooth(mapping = aes(x = Square_Footage, y = Selling_Price))
+```
+
+This visualization shows the strong influence of a few data points where the *Square_Footage* is far larger than most other observations. These larger houses ar "bending" the smoothing curve and introducing a non-linearity in to the relationship that is not there for most houses in the data. Once again, I will need to further investigate the presence of these observations as possible outliers. 
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+    ggtitle("Figure 13: Seliing_Price vs. Lot_Size Scatter Plot") +
+  geom_point(mapping = aes(x = Lot_Size, y = Selling_Price)) +
+  geom_smooth(mapping = aes(x = Lot_Size, y = Selling_Price))
+
+```
+
+Like *Square_Footage*, Figure 13 shows that several observations have very high values of *Lot_Size*, thus bending the smoothing curve and suggesting the existence of outliers. Still, there appears to be a positive relation between the two variables.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+    ggtitle("Figure 14: Seliing_Price vs. Cond_Rating Scatter Plot") +
+  geom_point(mapping = aes(x = Cond_Rating, y = Selling_Price)) +
+  geom_smooth(mapping = aes(x = Cond_Rating, y = Selling_Price))
+
+```
+
+Figure 14 shows that there may be a modest positive relation between *Selling_Price* and *Cond_Rating* but it is minimal and difficult to tell if it is really positive.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = housing_prices3) +
+  ggtitle("Figure 15: Seliing_Price vs. Num_Bedrooms Scatter Plot") +
+  geom_point(mapping = aes(x = Num_Bedrooms, y = Selling_Price)) +
+  geom_smooth(mapping = aes(x = Num_Bedrooms, y = Selling_Price))
+```
+
+Figure 15 does not really highlight a relationship between *Selling_Price* and *Fin_Basement*. I will have to let the regression flesh this out.
+
+## Regression Model Results 
+
+This section presents results for the linear regression model 
+
+$SellingPrice = \beta_0 + \beta_1(LotSize) + \beta_2 (NumBedrooms) + \beta_3 (CondRating) + \beta_4 (SquareFootage) + /beta_5*(FinBasement) + \epsilon$
+
+First, the model is estimated using all 1460 observations. The resulting regression equation is:
+
+
+$SellingPrice = 63540 + 0.6451(LotSize) - 26566(NumBedrooms) - 40.33(CondRating) + 125.2(SquareFootage) - 6389(FinBasement)$
+
+
+Further results can be found in Table 3.
+
+<center>
+
+**Table 3: Initial Regression Results (outliers included)**
+
+</center>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+model1 <- lm(Selling_Price ~ Lot_Size + Num_Bedrooms + Cond_Rating + Square_Footage + Fin_Basement, data = housing_prices3)
+summary(model1)
+```
+
+
+The regression results us that the independent variables do fairly well at explaining *Selling_Price*. To begin, the adjusted R-Square value is -.5641, indicating that more than 50% of the variation in *selling_Price* is explained by the independent variables. Further, the p-value is 2.2e-16 which is very close to zero, indicating that the regression model is statistically significant. More specifically, *Square_Footage*, *Lot_Size*, and *Num_Bedrooms* are all statistically significant at a level above 99%. In addition, *Fin_Basement* is nearly significant with a p-value of 0.144. Of the five independent variables, only *Cond_Rating* is highly insignificant. I now turn to four robustness tests of the model.
+
+The coefficients of *Square_Footage* and *Lot_Size* are, as hypothesized, positive. However, the coefficients *Num_Bedrooms*, *Cond_Rating*, and *Fin_Basement* are all negative, the opposite of what was anticipated. I suspect that these contrary results may be due to the influence of outliers. I will address this issue after examining the robustness tests from the model that includes the outliers.
+
+\pagebreak
+
+<center> **Figure 16: Robustness Tests on Initial Regression (outliers included)** </center>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+par(mfrow=c(2,2))
+plot(model1, which = c(1,2,3,4))
+```
+
+The four graphs in Figure 16 are insightful. First, the plot of Residuals vs Fitted Values shows some non-linearity and divergence from the horizontal line at zero. This is particularly true for the higher level of fitted values which most likely comes from the outliers discussed above. It also shows the inequality of variance as the fitted values increase, thus confirming our suspicions about heteroscedasticity from above. The Quantile-Quantile Residuals Plot diverges from the 45-degree line for low and high quantiles. This is evidence that the residuals may not be normally distributed, once again possibly caused by the outliers. The Scale-Location Plot shows the residuals are not spread equally along the ranges of predictors and is the red line is far from horizontal, indicating that there is heteroscedasticity. Finally, the Cook's Distance Plot shows that there are at least a few extreme outliers. In fact, there are more than just the three isolated by the plot. It is just that observation 1299 is so extreme, that it dwarfs other, large, outliers.
+
+In light of the above robustness tests, I next removed the most extreme outliers and reran the regression model (I removed 89 outliers, primarily based on an abnormally large *Square_Footage* and/or *Lot_Size*). But before doing so, I present Figure 17 to show that the scatter plot of *Selling_Price* versus *Square_Footage* removes the non-linearity seen in Figure 12 as evidence that the outlier removal was effective. 
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(data = prices_no_outliers) +
+  ggtitle("Figure 17: Seliing_Price vs. Square_Footage Scatter Plot") +
+  geom_point(mapping = aes(x = Square_Footage, y = Selling_Price)) +
+  geom_smooth(mapping = aes(x = Square_Footage, y = Selling_Price))
+```
+
+<center>
+
+**Table 4: Follow-Up Regression Results (outliers removed)**
+
+</center>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+model2 <- lm(Selling_Price ~ Lot_Size + Num_Bedrooms + Cond_Rating + Square_Footage + Fin_Basement, data = prices_no_outliers)
+summary(model2)
+```
+
+The new estimated regression equation is:
+
+$SellingPrice = 40010 + 4.707(LotSize) - 32320(NumBedrooms) - 319.6(CondRating) + 126.7(SquareFootage) - 2981(FinBasement)
+
+Table 4 shows that a 4% improvement in the adjusted R-Square and the p-value was nearly the same as with the outliers. This suggests that removing the outliers helped, but not much. In terms of the regression coefficients, although the exact estimates differ, *Square_Footage*, *Lot_Size*, and  *Num_Bedrooms* are still all statistically significant at a high confidence level (> 99%) and that *Cond_Ranking* and *Fin_Basement* continue to be insignificant. In fact, the *Fin_Basement* became even more insignificant than when the outliers were included. The signs of the coefficient are also the same than before the outliers were removed.
+
+
+<center>
+
+**Figure 18: Robustness Tests on Follow-Up Regression (outliers removed)**
+
+</center>
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+par(mfrow=c(2,2))
+plot(model2, which = c(1,2,3,4))
+```
+
+Once again, the four graphs are insightful. This time, the plot of Residuals vs Fitted Values in Figure 18 now has much less spread in the variation although there is some for higher values of the fitter values. The Q-Q Residuals Plot still deviates from the 45-degree line in the higher and lower quantiles. The Scale-Location Plot has a much more horizontal red line although there is a slight upward  slope. The Cook's Distance Plot shows that there are at least a few (relatively)extreme outliers. All of this suggests that removing the outliers reduced the heteroscedasticity but that there are still issues. 
+
+Although the correlation matrices in Table 2 provided little evidence of linear correlation, I conclude my analysis of multicollinearity by examining the Variance Inflation Factor (VIF) associated with each regression.
+
+VIF for regression that includes the outliers:
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+vif(model1)
+```
+
+VIF for regression that excludes the outliers:
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+vif(model2)
+```
+
+All VIF values are near 1.0, indicating that multicollinearity is not an issue in the regressions.
+
+# Conclusions
+
+## Discussion
+
+The results of both regressions (including and excluding outliers) confirm my hypotheses that increases in *Lot_Size* and *Square_Footage* increase the *Selling_Price* of a house. My similar hypotheses regarding *Cond_Rating* and *FinBasement* were not supported because neither's coefficient was not statistically significant. Further, both were actually negative rather than positive as hypothesized. Finally, not only was *Num_Bedrooms* statistically significant, it was surprisingly negative, a complete rejection of my fourth hypothesis. In essence, this means that increases in the size of the livable area and houses on larger lots will sell for more. Practically, this suggests that there is value in putting an addition on your house or perhaps obtaining contiguous property. The estimate for square footage is particularly enticing as it suggests that a 100 square foot addition to a house will add an estimated 
+$12,670. 
+
+## Business Value (Prescriptive Recommendations)
+
+The above example of a 100 square foot addition to a house provides an excellent example of how a business could utilize my results in a decision making capacity. That is, if the cost of an addition to a house is less than $12,670, it suggests that the addition could be a good idea, but that for higher costs, it should be prohibitive. A similar judgement could be made about whether or not to finish an unfinished basement although under the current regressions, I cannot make a definitive claim that finishing a basement would add any value to a house since that coefficient was insignificant. But the applications to business do not stop there. As mentioned at the beginning of the report, a Realtor can input the characteristics of a house into my regression equation in order to forecast the price at which the house will sell. Theoretically, it will also allow agents to help sellers make decisions about updates/upgrades to the house before putting it on the market. For instance, if the cost of improving the condition of the house is less than the estimated benefit of a higher condition rating, this would signal that improving the condition is cost effective. Unfortunately, from a practical standpoint, the regression coefficient on *Con_Rating* was insignificant so any decisions based on that coefficient would be misleading.
+
+In summation, The key takeaways from this report ar that the size of a house and the size of the plot of land it is built on very likely influence the value of the house in a positive direction. Other influences are questionable due to the insignificance of some coefficient. This engenders further research on the issue, particularly that tat adds independent variables and deals with heteroscedasticity. My final recommendation is to apply the regression results with caution and to further investigate what causes changes in housing prices.
+
+## Limitations and Future Research
+
+The main limitation of the first model is the presence of outliers involving larger houses and very large plots of land. This was evidenced by the data visualization and verified by the Cook's Distance Test. The main limitation of the second regression is that it only applicable to real estate in Iowa that are less than 2747.5 square feet and/or sit on a lot less than 17,674 square feet (these values were selected because they are 1.5 times Q3 for each). Limiting in both regressions is that only five independent variables were used and the coefficients on three of them were statistically significant. Still, I do not think anything restricts my inferences about causality in my regressions. Each of the five independent variables were chosen exactly because of the expectation that they directly influence the selling price of a house.
+
+Future research could remove the insignificant variables and add more variables that should influence the value/selling price of the house. These data are not limited to the initial data set either. One might also collect data on crime rates and school quality in a house's neighborhood. Those are significant factors that affect demand for a house and would likely improve the adjusted R-Square value. Additionally, improved estimates would probably result if the finished basement variable could be expanded to include a partition into finished basements, unfinished basement, and no basement. This would require the creation of two dichotomous variables to handle all possible cases and still avoid the "dummy variable trap" and improve the overall model. Finally, any future research should definitely address the remaining outliers and heteroscedasticity. 
+
+
+
+
+

@@ -10,10 +10,9 @@
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.5;
-      text-align: left; /* enforce left justification */
+      text-align: left;
     }
 
-    /* Layout: image on left, content on right */
     .layout {
       display: flex;
       align-items: flex-start;
@@ -22,7 +21,7 @@
     }
 
     .header-img {
-      width: clamp(90px, 10vw, 200px); /* your approved image size */
+      width: clamp(90px, 10vw, 200px);
       height: auto;
       flex-shrink: 0;
       margin-right: 20px;
@@ -31,7 +30,7 @@
     .content {
       flex: 1;
       max-width: 900px;
-      text-align: left; /* enforce left justification inside content */
+      text-align: left;
     }
 
     .justified {
@@ -61,10 +60,21 @@
       filter: brightness(0.95);
     }
 
-    /* Extra indentation for sub-links */
     .sub-link {
       margin-left: 20px;
       list-style-type: circle;
+    }
+
+    /* Red banner style for name */
+    header h1 {
+      background-color: red;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 0 0 20px 0;
     }
   </style>
 </head>
@@ -153,7 +163,6 @@
               </ul>
             </li>
 
- 
           </ul>
         </section>
 

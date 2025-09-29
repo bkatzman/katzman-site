@@ -1,0 +1,115 @@
+---
+title: "POLS 4551 Final Project"
+author: "Spencer Katzman"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r}
+library(readxl)
+pols_data <- read_excel("pols_data.xlsx",sheet = 1)
+pols_data <- read_excel("pols_data_cov_data.xlsx",sheet = 1)
+```
+
+```{r}
+library(ggplot2)
+
+pols_reg <- lm(Score ~ PerStudentExpend + PerStudentExpend*DemControl + Income + PercBlack + PercHisp + PercOver18 + PercBach + Choice + RTW, data = pols_data)
+summary(pols_reg)
+
+meanpse <- mean(pols_data$PerStudentExpend)
+meanDC <- mean(pols_data$DemControl)
+meanInc <- mean(pols_data$Income)
+meanpB <- mean(pols_data$PercBlack)
+meanpH <- mean(pols_data$PercHisp)
+meanp18 <- mean(pols_data$PercOver18)
+meanpBach <- mean(pols_data$PerBach)
+meanChoice <- mean(pols_data$Choice)
+meanRTW <- mean(pols_data$RTW)
+
+x <- c(1, meanpse, meanDC, meanInc, meanpB, meanpH, meanp18, meanpBach, meanChoice, meanRTW, meanDC*meanpse)
+
+coefficients <- coef(pols_reg)
+
+
+# Initialize the sum
+total <- 0
+
+# For loop to calculate the sum
+for (i in 1:length(x)) {
+  total <- total + (coefficients[i] * x[i])
+}
+
+# Print the result
+print(total)
+coefficients[11]
+
+summary(pols_reg)
+
+#cor(pols_data)
+
+mean(pols_data$Score)
+
+residuals <- resid(pols_reg)
+
+hist(residuals, main = "Figure 1: Regression Residuals", 
+breaks = 20)
+
+plot(pols_data$PerStudentExpend , pols_data$Score, main = "Figure 1: Scatterplot with Line(s) of Best Fit", 
+     xlab = "Per Student Spending", ylab = "Reading Test Score", pch = 19, col = "blue")
+
+# Fit linear model and add line of best fit
+fit <- lm(pols_data$Score ~ pols_data$PerStudentExpend)
+lm(Score ~ PerStudentExpend + PerStudentExpend*DemControl + Income + PercBlack + PercHisp + PercOver18 + PercBach + Choice + RTW, data = pols_data)
+  
+abline(fit, col = "red", lwd = 2)
+#abline(a = 265, b = -0.5, col = "green", lwd = 2, lty = 2)
+# Add the line with intercept 265 and slope -0.5
+abline(a = 262.5235, b = -2.047e-04, col = "green", lwd = 2, lty = 2)
+
+
+```
+```{r}
+HW5_reg <- lm(Score ~ PerStudentExpend + Income, data = pols_data)
+summary(HW5_reg)
+
+
+library(summarytools)
+summary(pols_data$Score)
+summary(pols_data$PerStudentExpend)
+summary(pols_data$Income)
+summary(pols_data$PercBlack)
+summary(pols_data$PercHisp)
+summary(pols_data$PercOver18)
+summary(pols_data$PercBach)
+summary(pols_data$Choice)
+summary(pols_data$RTW)
+summary(pols_data$DemControl)
+
+
+dfSummary(pols_data$Score)
+dfSummary(pols_data$PerStudentExpend)
+dfSummary(pols_data$Income)
+dfSummary(pols_data$PercBlack)
+dfSummary(pols_data$PercHisp)
+dfSummary(pols_data$PercOver18)
+dfSummary(pols_data$PercBach)
+dfSummary(pols_data$Choice)
+dfSummary(pols_data$RTW)
+dfSummary(pols_data$DemControl)
+
+
+```
+
+```{r}
+plot(pols_data$PerStudentExpend, pols_data$Score, main = "Scatterplot with Line of Best Fit", 
+     xlab = "Per Student Spending", ylab = "Test Score", pch = 19, col = "blue")
+
+# Fit linear model and add line of best fit
+fit <- lm(pols_data$Score ~ pols_data$PerStudentExpend)
+#lm(Score ~ PerStudentExpend + Income, data = pols_data)
+  
+abline(fit, col = "red", lwd = 2)
+```
+
+

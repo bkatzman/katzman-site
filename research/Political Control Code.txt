@@ -1,0 +1,228 @@
+##Data and Coding Final Assignment: Spencer Katzman
+##POLS4150
+##Prof. Alexandria M. Putman
+
+##NOTE:
+##To access data files, set the working directory where the files are located.
+##This program also creates data files and writes them to a subdirectory called 
+##"Output". For example, after cleaning the data and combining it from multiple 
+##sources, the program writes "the "CompleteDataSet.csv" to the "Output directory. 
+##This command creates the subdirectory "Output" in the specified working directory.
+dir.create(file.path(getwd(), 'Output'), recursive = TRUE)
+
+#Load libraries
+library(tidyr)
+library(tidyverse)
+library(readxl)
+
+##Clear workspace
+rm(list=ls(all=TRUE))
+
+##Load data on population and percent of population over 18 from file with data downloaded from the Census Bureau.
+library(readxl)
+##Note: I set my working directory as the one my data files are in.
+age_data <- read_excel("age data.xlsx")
+age_data$population <- age_data$...2
+##Reduce population scale by a factor of one million 
+age_data$popinmil <- as.numeric(as.character(age_data$...2)) / 1000000
+##Convert age data from decimal to percentage form
+age_data$percentover18 <- as.numeric(as.character(age_data$...3)) / as.numeric(as.character(age_data$...2)) * 100
+##Remove unwanted rows from census data file
+age_data <- age_data[-c(1,2,3, 12, 31, 55, 56, 57,58,59,60,61), ]
+##Remove unneccessary columns from census data file
+age_data <- age_data[-c(2,3,4,5)]
+##Standardize first column name as "State". 
+##This will be done with all downloaded and converted data tables so they can be properly merged when creating 
+##the "complete" data file 
+colnames(age_data)[1] <- "State"
+##Change other column names to match references in paper
+colnames(age_data)[2] <- "Pop"
+colnames(age_data)[3] <- "Age"
+
+##Load data on TPS percentage with data downloaded from the EdChoice.
+EdChoice_Data <- read_excel("EdChoice Data.xlsx")
+EdChoice_Data <- EdChoice_Data[order(EdChoice_Data$...1),]
+##Delete unneccessary columns
+EdChoice_Data <- EdChoice_Data[-c(2,3,4,5,7,8,9)]
+##Remove unwanted rows
+EdChoice_Data <- EdChoice_Data[-c(9,28),]
+##Standardize first column name to "State"
+colnames(EdChoice_Data)[1] <- "State"
+##Change second column name to "TPS" to match data reference in paper
+colnames(EdChoice_Data)[2] <- "TPS"
+
+##Load data on Per Capita Income with data downloaded from the Federal Reserve.
+library(readxl)
+Fed_Reserve_Income_Data <- read_excel("Fed Reserve Income Data.xlsx")
+##Remove unwanted rows
+Fed_Reserve_Income_Data <- Fed_Reserve_Income_Data[-c(9,28),]
+##Remove unnecessary columns
+Fed_Reserve_Income_Data <- Fed_Reserve_Income_Data[-c(3,4)]
+##Change second column name to "Inc" to match data reference in paper
+colnames(Fed_Reserve_Income_Data)[2] <- "Inc"
+##Convert income values to per $1000
+Fed_Reserve_Income_Data$Inc <- as.numeric(as.character(Fed_Reserve_Income_Data$Inc)) / 1000
+
+##Load data on legislative control with data downloaded from the National Conference of State Legislatures website.
+Legis_Control_Data_2023 <- read_excel("Legis_Control Data 2023.xlsx")
+##Delete unwanted row
+Legis_Control_Data_2023 <- Legis_Control_Data_2023[-c(27),]
+##Remove unneccessary columns
+Legis_Control_Data_2023 <- Legis_Control_Data_2023[-c(2,3,4,5,6,7,8,9,10,11,12)]
+##Converts sting entries in "State Control" column to Rep column value to '1' if State Control = 'Rep', else = '0'
+Legis_Control_Data_2023$rep <- factor(Legis_Control_Data_2023$`State Control`, 
+                             levels = c("Rep","Dem","Divided"),
+                             labels = c(1,0,0))
+##Converts sting entries in "State Control" column to Dem column value to '1' if State Control = 'Dem', else = '0'
+Legis_Control_Data_2023$dem <- factor(Legis_Control_Data_2023$`State Control`, 
+                                      levels = c("Rep","Dem","Divided"),
+                                      labels = c(0,1,0))
+##Remove State Control column
+Legis_Control_Data_2023 <- Legis_Control_Data_2023[-c(2)]
+##Standardize first column name to "State"
+colnames(Legis_Control_Data_2023)[1] <- "State"
+
+##Load data on Right To Work status with data downloaded from the National Conference of State Legislatures website.
+library(readxl)
+Right_to_Work_State_Data <- read_excel("Right to Work State Data.xlsx")
+##Remove Nebraska
+Right_to_Work_State_Data <- Right_to_Work_State_Data[-c(27),]
+##Standardize first column name to "State"
+colnames(Right_to_Work_State_Data)[1] <- "State"
+##Change second column name to "RTW" to match data reference in paper
+colnames(Right_to_Work_State_Data)[2] <- "RTW"
+
+##Load data on racial percentages with data downloaded from the Governing.com.
+library(readxl)
+Race_Data <- read_excel("Race Data.xlsx")
+##Remove Nebraska
+Race_Data <- Race_Data[-c(27),]
+##Remove unnecessary columns
+Race_Data <- Race_Data[-c(3,5,6)]
+##Change second and third column names to "Hsp" and "Blk" to match data references in paper
+colnames(Race_Data)[2] <- "Hsp"
+colnames(Race_Data)[3] <- "Blk"
+##Convert racial data from decimal to percentage form
+Race_Data$`Hsp` <- as.numeric(as.character(Race_Data$`Hsp`)) * 100
+Race_Data$`Blk` <- as.numeric(as.character(Race_Data$`Blk`)) * 100
+
+##Combine data extracted and cleaned from above into one data file.
+CompleteDataSet <- dplyr::left_join(x = EdChoice_Data, y = Legis_Control_Data_2023, by = "State")
+CompleteDataSet <- dplyr::left_join(x = CompleteDataSet, y = Race_Data, by = "State")
+CompleteDataSet <- dplyr::left_join(x = CompleteDataSet, y = age_data, by = "State")
+CompleteDataSet <- dplyr::left_join(x = CompleteDataSet, y = Fed_Reserve_Income_Data, by = "State")
+CompleteDataSet <- dplyr::left_join(x = CompleteDataSet, y = Right_to_Work_State_Data, by = "State")
+
+##Write the complete data set to file CompleteDataSet.csv
+##Note: All output files are written in the sub-directory "Output" of the working directory.
+write.csv(CompleteDataSet,"Output/CompleteDataSet.csv")
+
+##Created and read this into the code to make sure the data being used is correct.
+library(readxl)
+DataSet <- read_csv("Output/CompleteDataSet.csv")
+
+##Run regression with all 8 X's
+reg.model1 <- lm(DataSet$TPS ~ DataSet$rep + DataSet$dem + DataSet$Hsp + DataSet$Blk + DataSet$Age + DataSet$Pop 
+                 + DataSet$Inc + DataSet$RTW)
+##Glance at regression results
+library(tidymodels)
+glance(reg.model1)
+summary.lm(reg.model1)
+
+##Create histogram to show variability in TPS
+hist(DataSet$TPS, main = "", xlab = "TPS Enrollments")
+##Create histogram to show variability in Rep
+counts <- table(CompleteDataSet$rep, factor(CompleteDataSet$rep, levels = c("0", "1")))
+barplot(counts, xlab = "Republican Control (1 = Yes, 0 = No)", ylab = "Frequency")
+##Create histogram to show variability in Dem
+counts <- table(CompleteDataSet$dem, factor(CompleteDataSet$dem, levels = c("0", "1")))
+barplot(counts, xlab = "Democrat Control (1 = Yes, 0 = No)", ylab = "Frequency")
+##Plot relation between Rep and TSP
+boxplot(DataSet$TPS ~ DataSet$rep, xlab = "Republican Control", ylab = "TPS Enrollment")
+##Plot relation between Dem and TSP
+boxplot(DataSet$TPS ~ DataSet$dem, xlab = "Democrat Control", ylab = "TPS Enrollment")
+
+##Check for Outliers
+cooks.distance(reg.model1)
+cooks.distance(reg.model1)[which.max(cooks.distance(reg.model1))]
+plot(reg.model1,which = 4)
+##I am finding that Florida (9), Mississippi (24), and New Mexico (30) have Cook's distance values well more 
+##than 3 times the average distance so they are outliers.
+
+##Run smaller regression with 5 X's (Dem, Pop, and RTW removed for causing multicollinearity) and outliers left in. 
+reg.model2 <- lm(DataSet$TPS ~ DataSet$rep + DataSet$Hsp + DataSet$Blk + DataSet$Age + DataSet$Inc )
+##Glance at regression results 
+glance(reg.model2)
+summary.lm(reg.model2)
+
+##DataSetNO (NO stands for No Outliers) removes Dem, Pop, and RTW because of multicollinearity and AK, FL, NM as outliers
+DataSetNO <- DataSet[-c(2, 9, 30), ]
+
+##Run smaller regression with 5 X's and outliers removed
+reg.model3 <- lm(DataSetNO$TPS ~ DataSetNO$rep + DataSetNO$Hsp + DataSetNO$Blk + DataSetNO$Age + DataSetNO$Inc )
+##Glance at regression results 
+glance(reg.model3)
+summary.lm(reg.model3)
+
+######################################### Assumptions Testing #########################################
+
+##Testing for Multicollinearity
+
+##Remove Index and TPS columns
+CompleteXData <- CompleteDataSet[-c(1, 2)]
+##Write X data to a file to be used in creating correlation table
+write.csv(CompleteXData,"Output/CompleteX.csv")
+
+##Compute Pearson correlation matrix
+write.csv(CompleteXData,"Output/CorFileX.csv")
+CorFile <- read_csv("Output/CorFileX.csv")
+##Remove index column
+CorFile <- CorFile[-c(1)]
+
+## Calculate VIF
+library(car)
+##Check multicollinearity with all 8 X's
+vif1 <- vif(reg.model1)
+view(vif1)
+##Check multicollinearity with only 5 X's in Models 2 and 3 (three X's removed that seem to cause multicollinearity 
+##found by above vif and in Pearson covariance matrix)
+vif2 <- vif(reg.model2)
+view(vif2)
+vif3 <- vif(reg.model3)
+view(vif3)
+
+##Testing for Linearity of Parameters
+
+##Plots residuals vs fitted values.
+plot(reg.model1, 1, main = "Model 1")
+plot(reg.model2, 1, main = "Model 2")
+plot(reg.model3, 1, main = "Model 3")
+##All three lines are flat with the exception that the one from Model 3 is curved for the lowest fitted values.
+##The average residuals are near 0 over the entire range with the exception of the low fitted values in Model 3.
+##Conclusion: There is linearity in parameters.
+
+##Testing for Homoscedasticity
+
+##Plot residuals versus fitted values for the three models.
+plot(reg.model1$fitted.values, reg.model1$residuals, main = "Model 1", xlab = "Fitted Values", ylab = "Residuals")
+plot(reg.model2$fitted.values, reg.model2$residuals, main = "Model 2", xlab = "Fitted Values", ylab = "Residuals")
+plot(reg.model3$fitted.values, reg.model3$residuals, main = "Model 3", xlab = "Fitted Values", ylab = "Residuals")
+##The residuals are evenly spread out with no signs of a trend in them so this test is passed.
+##Plot SQRT(Standardized Residuals) versus Fitted Values to check for heteroskedasticity for all three models
+plot(reg.model1, 3, main = "Model 1")
+plot(reg.model2, 3, main = "Model 2")
+plot(reg.model3, 3, main = "Model 3")
+##These lines are fairly flat and this test is passed.
+##Conclusion: homoskedasticity assumption is satisfied.
+
+##Testing for Normally Distributed Errors
+
+## Plots standardized residuals against the theoretical quantiles for all three models.
+plot(reg.model1, 2, main = "Model 1")
+plot(reg.model2, 2, main = "Model 2")
+plot(reg.model3, 2, main = "Model 3")
+##All points are near the dotted line in Model except for Florida which is below the line by a fair amount.
+##Generally, points are near the 45-degree line for all three Models.
+##Conclusion: Errors are normally distributed.
+
+##Thanks for an incredibly interesting class Professor Putman!

@@ -31,9 +31,9 @@ body {
   max-width: 900px;
 }
 
-/* Objective section text is justified */
+/* Objective section text */
 .justified {
-  text-align: justify;
+  text-align: left; /* <-- changed from justify to left */
 }
 
 /* Section spacing */

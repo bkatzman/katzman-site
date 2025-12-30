@@ -6,6 +6,11 @@ body {
   text-align: left;
 }
 
+/* Force left alignment for normal text (prevents any “mystery” justification/right-align) */
+p, li, ul, ol, section, main, .content {
+  text-align: left;
+}
+
 /* Layout: image on left, content on right */
 .layout {
   display: flex;
@@ -18,7 +23,7 @@ body {
 /* Responsive image */
 .header-img {
   width: clamp(360px, 48vw, 1100px); /* responsive scaling */
-  max-width: none;                   /* remove 120px cap */
+  max-width: none;
   height: auto;
   display: block;
   margin: 0 auto 10px auto;
@@ -31,9 +36,9 @@ body {
   max-width: 900px;
 }
 
-/* Objective section text */
-.justified {
-  text-align: left; /* <-- changed from justify to left */
+/* Paper description spacing */
+.paper-desc {
+  margin: 6px 0 6px 0;
 }
 
 /* Section spacing */
@@ -47,18 +52,35 @@ ul {
   list-style: disc outside;
 }
 
+.sub-link {
+  margin-left: 20px;
+  list-style-type: circle;
+}
+
 /* Call-to-action link (Resume button) */
 .cta-link {
   display: inline-block;
   font-weight: 900;
   font-size: 1.35rem;
   text-decoration: none;
-  background: #D32431; /* Amaranth red background */
-  color: #ffffff;      /* white text */
+  background: #D32431;
+  color: #ffffff;
   padding: 12px 16px;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .cta-link:hover {
   filter: brightness(0.95);
+}
+
+/* Red banner style for name */
+header h1 {
+  background-color: #BA0C2F;
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center; /* keep the name centered */
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 0 0 20px 0;
 }

@@ -5,11 +5,9 @@
   <title>Spencer Katzman</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Cache-bust so your live site actually loads the newest CSS -->
   <link rel="stylesheet" href="style.css?v=3">
 
   <style>
-    /* Center the entire layout block in the viewport */
     .page-center {
       min-height: 100vh;
       display: flex;
@@ -17,10 +15,26 @@
       align-items: center;
     }
 
-    /* Scale the image to 75% of its current rendered size */
     .header-img {
       transform: scale(0.75);
       transform-origin: center top;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Image + resume button grouped */
+    .image-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+
+    /* Resume button matches image width */
+    .image-block .cta-link {
+      width: 75%;
+      text-align: center;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -28,7 +42,14 @@
 <body>
   <div class="page-center">
     <div class="layout">
-      <img src="katzman.png?v=8" alt="Spencer Katzman" class="header-img">
+
+      <div class="image-block">
+        <img src="katzman.png?v=8" alt="Spencer Katzman" class="header-img">
+
+        <a class="cta-link" href="resume.pdf" target="_blank">
+          Resume Download (PDF)
+        </a>
+      </div>
 
       <div class="content">
         <header>
@@ -41,11 +62,11 @@
             <p>
               Welcome to my personal webpage. I am a junior at the University of Georgia
               triple majoring in Mathematics, Economics, and Political Science. My current
-              ojective is to obtain a sports analytics internship where I can apply the
+              ojective is to obtain a data analytics or strategic decision focused internship 	      where I can apply the
               quantitative abilities developed in my coursework while leveraging my
               proficiency in R, Python, SQL, and Excel. I possess strong problem solving
               and self-directed learning skills and would like to gain hands-on experience
-              applying analytics to sports performance, strategy, and decision making.
+              applying analytics to sports, business, or politics.
             </p>
           </section>
 
@@ -72,7 +93,7 @@
                 <ul>
                   <li class="sub-link">
                     <a href="research/RCV1%20Code.txt" target="_blank">
-                      Revise and Resubmit: Public Choice
+                      R Code
                     </a>
                   </li>
                   <br>
@@ -83,13 +104,9 @@
                 <a href="research/RCV%20Paper1%20-%20Katzman.pdf" target="_blank">
                   A Comparison of Three Versions of Ranked Choice Voting using Computer Simulations
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/RCV1%20Code.txt" target="_blank">R code</a>
-                  </li>
+                  <li class="sub-link"><a href="research/RCV1%20Code.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -98,15 +115,9 @@
                 <a href="research/Predictive%20Econometric%20Models.pdf" target="_blank">
                   Predictive Econometric Modelling Report
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/Predictive%20Econometric%20Models.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/Predictive%20Econometric%20Models.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -115,15 +126,9 @@
                 <a href="research/Predictive%20Modeling.pdf" target="_blank">
                   Predictive Modelling Memorandum
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/Predictive%Modelling.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/Predictive%Modelling.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -132,15 +137,9 @@
                 <a href="research/Predictive%20Modeling%20of%20Housing%20Prices.pdf" target="_blank">
                   Predictive Modelling of Housing Prices
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/Predictive%20Modelling%20of%20Housing%20Prices.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/Predictive%20Modelling%20of%20Housing%20Prices.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -149,15 +148,9 @@
                 <a href="research/Gender%20Wage%20Gap.pdf" target="_blank">
                   Exploring Gender Differences Between Men and Women
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/Gender%20Wage%20Gap%20code.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/Gender%20Wage%20Gap%20code.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -166,15 +159,9 @@
                 <a href="research/How%20State%20K-12%20Spending%20Affects%20Student%20Learning.pdf" target="_blank">
                   How State K-12 Spending Affects Student Learning
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/K-12%20Spending%20Code.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/K-12%20Spending%20Code.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
@@ -183,28 +170,13 @@
                 <a href="research/How%20State%20Political%20Control%20Affects%20School%20Choice%20Options.pdf" target="_blank">
                   How State Political Control Affects School Choice Options
                 </a>
-                <p class="paper-desc">
-                  add text here
-                </p>
+                <p class="paper-desc">add text here</p>
                 <ul>
-                  <li class="sub-link">
-                    <a href="research/Political%20Control%20Code.txt" target="_blank">
-                      R code
-                    </a>
-                  </li>
+                  <li class="sub-link"><a href="research/Political%20Control%20Code.txt" target="_blank">R code</a></li>
                   <br>
                 </ul>
               </li>
             </ul>
-          </section>
-
-          <section>
-            <h2>Resume</h2>
-            <p>
-              <a class="cta-link" href="resume.pdf" target="_blank">
-                Download my CV (PDF)
-              </a>
-            </p>
           </section>
         </main>
       </div>

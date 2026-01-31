@@ -1,0 +1,500 @@
+#Code for POLS 4970: RCV with different elimination methods
+
+
+# R script (save as, e.g., run_rcv.R)
+flush.console()
+start_time <- Sys.time()
+
+#version
+
+
+Rcpp::sourceCpp("C:\\Users\\brett\\OneDrive\\Desktop\\UGA\\2025 Fall\\POLS 4970R\\rcv_shared\\programs\\c_functions\\rcpp_rcv_helpers_2.cpp")
+
+
+# ---- Packages ----
+suppressPackageStartupMessages({
+  library(openxlsx)
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  library(future)
+  library(future.apply)
+  library(writexl)
+  library(combinat) # not needed; using base utils::combn
+})
+
+# Parallel plan (Windows-friendly)
+plan(multisession)  # adjust workers via plan(multisession, workers = parallel::detectCores()-1)
+
+# ---- Paths / Globals ----
+input_ballot_dir <- "C:\\Users\\brett\\OneDrive\\Desktop\\UGA\\2025 Fall\\POLS 4970R\\rcv_shared\\programs\\rcv_data\\ballots_3c"
+T <- 567
+num_cands <- 9
+
+
+# ---- Output DF ----
+output_df <- data.frame(
+  LFP = NA_integer_,
+  MLP = NA_integer_,
+  LBC = NA_integer_,
+  CW  = NA_integer_,
+  Copeland = NA_integer_,
+  Rev.LFP = NA_integer_,
+  Rev.MLP = NA_integer_,
+  Rev.LBC = NA_integer_,
+  IEA.LFP = NA_integer_,
+  IEA.MLP = NA_integer_,
+  IEA.LBC = NA_integer_,
+  stringsAsFactors = FALSE
+)
+output_df <- output_df[rep(1, T), ]
+rownames(output_df) <- NULL
+
+########################### VOTING FUNCTIONS & HELPERS ###############################
+
+# Groups identical ballots with frequencies on far right.
+group_ballots <- function(ballot_profile) {
+  ballot_profile_chr <- ballot_profile %>%
+    mutate(across(everything(), as.character)) %>%
+    mutate(across(everything(), ~replace_na(., "_NA_")))
+  grouped <- ballot_profile_chr %>%
+    group_by(across(everything())) %>%
+    summarise(freq = n(), .groups = "drop")
+  grouped <- grouped %>%
+    mutate(across(-freq, ~na_if(., "_NA_"))) %>%
+    mutate(across(-freq, ~suppressWarnings(as.numeric(.))))
+  grouped
+}
+
+# --------- FAST LBC (unchanged except using C++ for Borda) ---------
+winner_LBC_grouped <- function(grouped_ballots, candidate_subset = NULL) {
+  ranks_cols <- grep("^rank", names(grouped_ballots), value = TRUE)
+  rank_mat <- as.matrix(grouped_ballots[ranks_cols])
+  freq_vec <- grouped_ballots$freq
+  
+  all_candidates <- sort(unique(as.vector(rank_mat)))
+  all_candidates <- all_candidates[!is.na(all_candidates)]
+  candidates <- if (is.null(candidate_subset)) all_candidates else candidate_subset
+  candidates <- as.integer(candidates)
+  
+  elimination_order <- integer(0)
+  tied_eliminations <- list()
+  
+  while (length(candidates) > 0L) {
+    if (length(candidates) == 1L) {
+      winner <- candidates
+      elimination_order <- c(elimination_order, winner)
+      return(list(winner = winner,
+                  elimination_order = elimination_order,
+                  tied_eliminations = tied_eliminations))
+    }
+    # Majority check via fast first-choice tally (C++)
+    fc <- first_choice_counts_cpp(rank_mat, freq_vec, candidates)
+    total_votes <- sum(fc)
+    majority_threshold <- floor(total_votes / 2) + 1L
+    if (any(fc >= majority_threshold)) {
+      winner <- as.integer(names(fc)[which.max(fc)])
+      elimination_order <- c(elimination_order, setdiff(candidates, winner), winner)
+      return(list(winner = winner,
+                  elimination_order = elimination_order,
+                  tied_eliminations = tied_eliminations))
+    }
+    # Eliminate lowest Borda (tie -> record + random tiebreak)
+    scores <- borda_count_cpp(rank_mat, freq_vec, candidates)
+    min_score <- min(scores)
+    to_eliminate <- as.integer(names(scores)[scores == min_score])
+    if (length(to_eliminate) > 1L) {
+      tied_eliminations[[length(elimination_order) + 1L]] <- to_eliminate
+    }
+    elim_candidate <- if (length(to_eliminate) > 1L) sample(to_eliminate, 1L) else to_eliminate
+    elimination_order <- c(elimination_order, elim_candidate)
+    candidates <- setdiff(candidates, elim_candidate)
+  }
+  
+  list(winner = NA_integer_,
+       elimination_order = elimination_order,
+       tied_eliminations = tied_eliminations)
+}
+
+# --------- FAST LFP (your existing) ---------
+winner_LFP_grouped <- function(grouped_ballots, candidate_subset = NULL) {
+  ranks_cols <- grep("^rank", names(grouped_ballots), value = TRUE)
+  rank_mat <- as.matrix(grouped_ballots[ranks_cols])
+  freq_vec <- grouped_ballots$freq
+  
+  all_candidates <- sort(unique(as.vector(rank_mat)))
+  all_candidates <- all_candidates[!is.na(all_candidates)]
+  candidates <- if (is.null(candidate_subset)) all_candidates else candidate_subset
+  candidates <- as.integer(candidates)
+  
+  elimination_order <- integer(0)
+  tied_eliminations <- list()
+  
+  while (length(candidates) > 0L) {
+    if (length(candidates) == 1L) {
+      winner <- candidates
+      elimination_order <- c(elimination_order, winner)
+      return(list(winner = winner, elimination_order = elimination_order, tied_eliminations = tied_eliminations))
+    }
+    
+    # First-choice tally (C++): majority check
+    fc <- first_choice_counts_cpp(rank_mat, freq_vec, candidates)
+    total_votes <- sum(fc)
+    majority_threshold <- floor(total_votes / 2) + 1L
+    if (any(fc >= majority_threshold)) {
+      winner <- as.integer(names(fc)[which.max(fc)])
+      elimination_order <- c(elimination_order, setdiff(candidates, winner), winner)
+      return(list(winner = winner, elimination_order = elimination_order, tied_eliminations = tied_eliminations))
+    }
+    
+    # Eliminate least first-place votes (break ties uniformly at random)
+    min_votes <- min(fc)
+    to_eliminate <- as.integer(names(fc)[fc == min_votes])
+    if (length(to_eliminate) > 1L) {
+      tied_eliminations[[length(elimination_order) + 1L]] <- to_eliminate
+    }
+    elim_candidate <- if (length(to_eliminate) > 1L) sample(to_eliminate, 1L) else to_eliminate
+    
+    elimination_order <- c(elimination_order, elim_candidate)
+    candidates <- setdiff(candidates, elim_candidate)
+  }
+  list(winner = NA_integer_, elimination_order = elimination_order, tied_eliminations = tied_eliminations)
+}
+
+# --------- **FAST MLP** (now uses exported C++ last_place_counts_cpp) ---------
+winner_MLP_grouped <- function(grouped_ballots, candidate_subset = NULL) {
+  ranks_cols <- grep("^rank", names(grouped_ballots), value = TRUE)
+  rank_mat   <- as.matrix(grouped_ballots[ranks_cols])
+  freq_vec   <- grouped_ballots$freq
+  
+  all_candidates <- sort(unique(as.vector(rank_mat)))
+  all_candidates <- all_candidates[!is.na(all_candidates)]
+  candidates     <- if (is.null(candidate_subset)) all_candidates else candidate_subset
+  candidates     <- as.integer(candidates)
+  
+  elimination_order <- integer(0)
+  tied_eliminations <- list()
+  
+  while (length(candidates) > 0L) {
+    if (length(candidates) == 1L) {
+      winner <- candidates
+      elimination_order <- c(elimination_order, winner)
+      return(list(winner = winner, elimination_order = elimination_order, tied_eliminations = tied_eliminations))
+    }
+    
+    # Majority via fast first-choice tally (C++)
+    fc <- first_choice_counts_cpp(rank_mat, freq_vec, candidates)
+    total_votes <- sum(fc)
+    majority_threshold <- floor(total_votes / 2) + 1L
+    if (any(fc >= majority_threshold)) {
+      winner <- as.integer(names(fc)[which.max(fc)])
+      elimination_order <- c(elimination_order, setdiff(candidates, winner), winner)
+      return(list(winner = winner, elimination_order = elimination_order, tied_eliminations = tied_eliminations))
+    }
+    
+    # FAST last-place tally (C++)
+    last_place_votes <- last_place_counts_cpp(rank_mat, freq_vec, candidates)
+    max_last <- max(last_place_votes)
+    to_eliminate <- as.integer(names(last_place_votes)[last_place_votes == max_last])
+    
+    if (length(to_eliminate) > 1L) {
+      tied_eliminations[[length(elimination_order) + 1L]] <- to_eliminate
+    }
+    elim_candidate <- if (length(to_eliminate) > 1L) sample(to_eliminate, 1L) else to_eliminate
+    
+    elimination_order <- c(elimination_order, elim_candidate)
+    candidates <- setdiff(candidates, elim_candidate)
+  }
+  list(winner = NA_integer_, elimination_order = elimination_order, tied_eliminations = tied_eliminations)
+}
+
+# --------- Condorcet (unchanged) ---------
+find_condorcet_winner <- function(grouped) {
+  rank_cols <- grep("^rank", names(grouped), value = TRUE)
+  vals <- grouped[, rank_cols, drop = FALSE]
+  candidate_ids <- sort(unique(as.character(na.omit(unlist(vals)))))
+  if (length(candidate_ids) == 0) return(0L)
+  
+  pairwise_matrix <- matrix(0L, nrow = length(candidate_ids), ncol = length(candidate_ids),
+                            dimnames = list(candidate_ids, candidate_ids))
+  
+  for (i in seq_len(nrow(grouped))) {
+    ranks_chr <- as.character(na.omit(unlist(grouped[i, rank_cols, drop = FALSE])))
+    ranks_chr <- ranks_chr[ranks_chr %in% candidate_ids]
+    freq <- grouped$freq[i]
+    
+    if (length(ranks_chr) >= 2) {
+      for (j in seq_along(ranks_chr)) {
+        if (j < length(ranks_chr)) {
+          higher <- ranks_chr[j]
+          for (k in seq.int(j + 1L, length(ranks_chr))) {
+            lower <- ranks_chr[k]
+            pairwise_matrix[higher, lower] <- pairwise_matrix[higher, lower] + freq
+          }
+        }
+      }
+    }
+    
+    unranked <- setdiff(candidate_ids, ranks_chr)
+    if (length(unranked) && length(ranks_chr)) {
+      for (r in ranks_chr) for (u in unranked) pairwise_matrix[r, u] <- pairwise_matrix[r, u] + freq
+    }
+  }
+  
+  for (c in candidate_ids) {
+    wins <- pairwise_matrix[c, ] > pairwise_matrix[, c]
+    wins[c] <- TRUE
+    if (all(wins)) return(as.integer(c))
+  }
+  0L
+}
+
+
+# Copeland
+
+find_copeland <- function(grouped) {
+  rank_cols <- grep("^rank", names(grouped), value = TRUE)
+  vals <- grouped[, rank_cols, drop = FALSE]
+  candidate_ids <- sort(unique(as.character(na.omit(unlist(vals)))))
+  if (length(candidate_ids) == 0) return(integer(0))
+  
+  pairwise_matrix <- matrix(
+    0L,
+    nrow = length(candidate_ids),
+    ncol = length(candidate_ids),
+    dimnames = list(candidate_ids, candidate_ids)
+  )
+  
+  # Build pairwise tallies exactly like the Condorcet function:
+  # higher-ranked beats lower-ranked; ranked beats unranked.
+  for (i in seq_len(nrow(grouped))) {
+    ranks_chr <- as.character(na.omit(unlist(grouped[i, rank_cols, drop = FALSE])))
+    ranks_chr <- ranks_chr[ranks_chr %in% candidate_ids]
+    freq <- grouped$freq[i]
+    
+    # ranked beats lower-ranked
+    if (length(ranks_chr) >= 2) {
+      for (j in seq_along(ranks_chr)) {
+        if (j < length(ranks_chr)) {
+          higher <- ranks_chr[j]
+          for (k in seq.int(j + 1L, length(ranks_chr))) {
+            lower <- ranks_chr[k]
+            pairwise_matrix[higher, lower] <- pairwise_matrix[higher, lower] + freq
+          }
+        }
+      }
+    }
+    
+    # ranked beats unranked; both unranked contributes nothing
+    unranked <- setdiff(candidate_ids, ranks_chr)
+    if (length(unranked) && length(ranks_chr)) {
+      for (r in ranks_chr) {
+        for (u in unranked) {
+          pairwise_matrix[r, u] <- pairwise_matrix[r, u] + freq
+        }
+      }
+    }
+  }
+  
+  # Copeland score = (# pairwise wins) - (# pairwise losses)
+  # (ties contribute 0)
+  scores <- setNames(integer(length(candidate_ids)), candidate_ids)
+  
+  for (c in candidate_ids) {
+    wins   <- pairwise_matrix[c, ] > pairwise_matrix[, c]
+    losses <- pairwise_matrix[c, ] < pairwise_matrix[, c]
+    
+    wins[c] <- FALSE
+    losses[c] <- FALSE
+    
+    scores[c] <- sum(wins) - sum(losses)
+  }
+  
+  max_score <- max(scores)
+  winners_chr <- names(scores)[scores == max_score]
+  
+  # Return *all* Copeland winners as integers (empty integer() if none)
+  as.integer(winners_chr)
+}
+
+
+
+# ====================== IEA FUNCTIONS ======================
+.pick_min <- function(x) as.integer(min(x, na.rm = TRUE))
+
+IEA_LFP <- function(grouped, LFP_winner) {
+  ranks_cols <- grep("^rank", names(grouped), value = TRUE)
+  rank_mat <- as.matrix(grouped[ranks_cols])
+  freq_vec <- grouped$freq
+  first_choices <- rank_mat[, 1]
+  valid_idx <- !is.na(first_choices)
+  vote_counts <- tapply(freq_vec[valid_idx], first_choices[valid_idx], sum)
+  total_votes <- sum(freq_vec)
+  majority_threshold <- total_votes / 2
+  if (length(vote_counts)) {
+    for (candidate in names(vote_counts)) {
+      if (vote_counts[[candidate]] > majority_threshold) return(as.integer(candidate))
+    }
+  }
+  all_candidates <- sort(unique(as.vector(rank_mat))); all_candidates <- all_candidates[!is.na(all_candidates)]
+  other_candidates <- setdiff(all_candidates, LFP_winner)
+  for (k in seq_along(other_candidates)) {
+    combo_list <- utils::combn(other_candidates, k, simplify = FALSE)
+    hits <- lapply(
+      combo_list,
+      function(combo) {
+        candidate_subset <- setdiff(all_candidates, combo)
+        print(candidate_subset)
+        res <- winner_LFP_grouped(grouped, candidate_subset = candidate_subset)$winner[1]
+        if (!is.na(res) && res != LFP_winner) res else NA_integer_
+      }
+    )
+    hits <- na.omit(as.integer(unlist(hits, use.names = FALSE)))
+    if (length(hits)) return(.pick_min(hits))
+  }
+  as.integer(LFP_winner)
+}
+
+IEA_MLP <- function(grouped, MLP_winner) {
+  ranks_cols <- grep("^rank", names(grouped), value = TRUE)
+  rank_mat <- as.matrix(grouped[ranks_cols])
+  freq_vec <- grouped$freq
+  first_choices <- rank_mat[, 1]
+  valid_idx <- !is.na(first_choices)
+  vote_counts <- tapply(freq_vec[valid_idx], first_choices[valid_idx], sum)
+  total_votes <- sum(freq_vec)
+  majority_threshold <- total_votes / 2
+  if (length(vote_counts)) {
+    for (candidate in names(vote_counts)) {
+      if (vote_counts[[candidate]] > majority_threshold) return(as.integer(candidate))
+    }
+  }
+  all_candidates <- sort(unique(as.vector(rank_mat))); all_candidates <- all_candidates[!is.na(all_candidates)]
+  other_candidates <- setdiff(all_candidates, MLP_winner)
+  for (k in seq_along(other_candidates)) {
+    combo_list <- utils::combn(other_candidates, k, simplify = FALSE)
+    hits <- lapply(
+      combo_list,
+      function(combo) {
+        candidate_subset <- setdiff(all_candidates, combo)
+        print(candidate_subset)
+        res <- winner_MLP_grouped(grouped, candidate_subset = candidate_subset)$winner[1]
+        if (!is.na(res) && res != MLP_winner) res else NA_integer_
+      }
+    )
+    hits <- na.omit(as.integer(unlist(hits, use.names = FALSE)))
+    if (length(hits)) return(.pick_min(hits))
+  }
+  as.integer(MLP_winner)
+}
+
+IEA_LBC <- function(grouped, LBC_winner) {
+  ranks_cols <- grep("^rank", names(grouped), value = TRUE)
+  rank_mat <- as.matrix(grouped[ranks_cols])
+  freq_vec <- grouped$freq
+  first_choices <- rank_mat[, 1]
+  valid_idx <- !is.na(first_choices)
+  vote_counts <- tapply(freq_vec[valid_idx], first_choices[valid_idx], sum)
+  total_votes <- sum(freq_vec)
+  majority_threshold <- total_votes / 2
+  if (length(vote_counts)) {
+    for (candidate in names(vote_counts)) {
+      if (vote_counts[[candidate]] > majority_threshold) return(as.integer(candidate))
+    }
+  }
+  all_candidates <- sort(unique(as.vector(rank_mat))); all_candidates <- all_candidates[!is.na(all_candidates)]
+  other_candidates <- setdiff(all_candidates, LBC_winner)
+  for (k in seq_along(other_candidates)) {
+    combo_list <- utils::combn(other_candidates, k, simplify = FALSE)
+    hits <- lapply(
+      combo_list,
+      function(combo) {
+        candidate_subset <- setdiff(all_candidates, combo)
+        print(candidate_subset)
+        res <- winner_LBC_grouped(grouped, candidate_subset = candidate_subset)$winner[1]
+        if (!is.na(res) && res != LBC_winner) res else NA_integer_
+      }
+    )
+    hits <- na.omit(as.integer(unlist(hits, use.names = FALSE)))
+    if (length(hits)) return(.pick_min(hits))
+  }
+  as.integer(LBC_winner)
+}
+
+# ====================== MAIN LOOP (files) ======================
+for (i in 1:T) {
+  #message("Processing election ", i)
+  ballot_file_name <- paste0("ballots", i, ".csv")
+  ballot_file_path <- file.path(input_ballot_dir, ballot_file_name)
+  
+  if (!file.exists(ballot_file_path)) next
+  
+  #print("*******")
+  
+  raw_ballot_profile <- read.csv(ballot_file_path, stringsAsFactors = FALSE)
+  grouped <- group_ballots(raw_ballot_profile)
+  
+ 
+  
+  # Base winners
+  output_df$LFP[i] <- winner_LFP_grouped(grouped)$winner[1]
+  output_df$MLP[i] <- winner_MLP_grouped(grouped)$winner[1]
+  output_df$LBC[i] <- winner_LBC_grouped(grouped)$winner[1]
+  output_df$CW[i]  <- find_condorcet_winner(grouped)
+  output_df$Copeland[i] <- find_copeland(grouped)
+  #copeland_result <- find_copeland(grouped)
+  #if (length(copeland_result) >= 2) {
+  #  cat("Election:", i, " Copeland winners:", paste(copeland_result, collapse = ", "), "\n")
+  #}
+  
+  
+  # IEA
+  #output_df$IEA.LFP[i] <- IEA_LFP(grouped, output_df$LFP[i])
+  #output_df$IEA.MLP[i] <- IEA_MLP(grouped, output_df$MLP[i])
+  #output_df$IEA.LBC[i] <- IEA_LBC(grouped, output_df$LBC[i])
+  
+  # Reversed ballots for Rcv.* variants
+  #rev_raw_ballots <- t(apply(as.matrix(raw_ballot_profile), 1, function(row) {
+  #row <- rev(row); non_na <- row[!is.na(row)]
+  #c(non_na, rep(NA, length(row) - length(non_na)))
+  #}))
+  #rev_raw_ballots <- as.data.frame(rev_raw_ballots, stringsAsFactors = FALSE)
+  #colnames(rev_raw_ballots) <- colnames(raw_ballot_profile)
+  #rev_grouped <- group_ballots(rev_raw_ballots)
+  # 
+  #output_df$Rev.LFP[i] <- winner_LFP_grouped(rev_grouped)$winner[1]
+  #output_df$Rev.MLP[i] <- winner_MLP_grouped(rev_grouped)$winner[1]
+  #output_df$Rev.LBC[i] <- winner_LBC_grouped(rev_grouped)$winner[1]
+
+  # install.packages("openxlsx")  # run once if needed
+ 
+  
+  }
+
+# If Copeland entries are lists or vectors, collapse them
+output_df$Copeland <- sapply(output_df$Copeland, function(x) {
+  if (length(x) == 0 || all(is.na(x))) {
+    NA
+  } else {
+    paste(x, collapse = ", ")
+  }
+})
+
+# Write to Excel
+write.xlsx(
+  output_df,
+  file = "copeland_results.xlsx",
+  sheetName = "Results",
+  rowNames = FALSE
+)
+
+
+
+getwd()
+
+# ---- Write results ----
+#write_xlsx(grouped, path = paste0(num_cands, "RevSym_NotRev.xlsx"))
+#write_xlsx(rev_grouped, path = paste0("RevSym_Reversed.xlsx"))
+end_time <- Sys.time()
+cat("End time:", end_time, "\n")
+cat("Total runtime:", end_time - start_time, "\n")
